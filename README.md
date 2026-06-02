@@ -7,8 +7,8 @@ storing every mod in a managed library, and can stream an entire modded profile 
 friend over the internet.
 
 
-![demo_locate](docs/images/2026-06-02_4C59E316.png)
-![demo_usage](docs/images/2026-06-02_D6C23965.png)
+![demo_locate](docs/images/2026-06-02_C0F6C29B.png)
+![demo_usage](docs/images/2026-06-02_C0F6C29D.png)
 
 ## What it does
 
