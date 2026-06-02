@@ -1,0 +1,9 @@
+.vs/
+.superpowers/
+x64/
+Debug/
+Release/
+*.user
+out/
+build/
+vcpkg_installed/
