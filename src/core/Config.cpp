@@ -48,6 +48,7 @@ void to_json(nlohmann::json& j, const Config& c) {
         {"vsync", c.vsync},
         {"uiScale", c.uiScale},
         {"activeProfileName", c.activeProfileName},
+        {"includePrereleases", c.includePrereleases},
         {"background", {
             {"enabled", c.background.enabled},
             {"darkImage", c.background.darkImage},
@@ -75,6 +76,7 @@ void from_json(const nlohmann::json& j, Config& c) {
     c.vsync             = j.value("vsync", true);
     c.uiScale           = j.value("uiScale", 1.0f);
     c.activeProfileName = j.value("activeProfileName", "Vanilla");
+    c.includePrereleases = j.value("includePrereleases", false);
     if (j.contains("background") && j["background"].is_object()) {
         const auto& b = j["background"];
         c.background.enabled         = b.value("enabled", true);

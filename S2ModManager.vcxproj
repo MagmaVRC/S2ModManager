@@ -123,6 +123,7 @@
     <ClCompile Include="src\core\Game.cpp" />
     <ClCompile Include="src\core\Ue4ssMods.cpp" />
     <ClCompile Include="src\core\Http.cpp" />
+    <ClCompile Include="src\core\UpdateCheck.cpp" />
     <ClCompile Include="src\core\Archive.cpp" />
     <ClCompile Include="src\core\Ue4ssInstall.cpp" />
     <ClCompile Include="src\core\ProfileStore.cpp" />
@@ -153,6 +154,8 @@
     <ClInclude Include="src\core\Game.h" />
     <ClInclude Include="src\core\Ue4ssMods.h" />
     <ClInclude Include="src\core\Http.h" />
+    <ClInclude Include="src\core\AppVersion.h" />
+    <ClInclude Include="src\core\UpdateCheck.h" />
     <ClInclude Include="src\core\Archive.h" />
     <ClInclude Include="src\core\Ue4ssInstall.h" />
     <ClInclude Include="src\core\ProfileStore.h" />

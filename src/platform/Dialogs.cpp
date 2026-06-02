@@ -173,4 +173,9 @@ void openInExplorer(const std::string& path) {
     ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
+void openUrl(const std::string& url) {
+    std::wstring wu = core::widen(url);
+    ShellExecuteW(nullptr, L"open", wu.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+}
+
 }

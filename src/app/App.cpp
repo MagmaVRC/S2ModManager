@@ -1,5 +1,6 @@
 #include "App.h"
 #include "Theme.h"
+#include "../core/AppVersion.h"
 #include "../core/Ue4ssInstall.h"
 #include "../core/Archive.h"
 #include "../core/Paths.h"
@@ -254,6 +255,7 @@ App::App() : config_(core::Config::load()) {
     uiScaleCurrent_ = config_.uiScale;
 
     resolveGame();
+    checkForUpdates(false);
 }
 
 App::~App() {
@@ -266,6 +268,8 @@ App::~App() {
     }
     if (ue4ssThread_.joinable())
         ue4ssThread_.join();
+    if (updateThread_.joinable())
+        updateThread_.join();
     if (installThread_.joinable())
         installThread_.join();
 }
@@ -764,8 +768,49 @@ void App::pollUe4ssInstall() {
     }
 }
 
+void App::checkForUpdates(bool notifyWhenCurrent) {
+    if (updateBusy_.load())
+        return;
+    if (updateThread_.joinable())
+        updateThread_.join();
+
+    updateDone_ = false;
+    updateBusy_ = true;
+    updateNotifyWhenCurrent_ = notifyWhenCurrent;
+    const bool includePre = config_.includePrereleases;
+    updateThread_ = std::thread([this, includePre] {
+        core::UpdateCheckResult result = core::checkForUpdates(includePre);
+        { std::lock_guard<std::mutex> lk(updateMutex_); updateResult_ = std::move(result); }
+        updateBusy_ = false;
+        updateDone_ = true;
+    });
+}
+
+void App::pollUpdateCheck() {
+    if (updateBusy_.load())
+        ui::markAnimActive();
+    if (!updateDone_.exchange(false))
+        return;
+    if (updateThread_.joinable())
+        updateThread_.join();
+
+    core::UpdateCheckResult result;
+    { std::lock_guard<std::mutex> lk(updateMutex_); result = updateResult_; }
+    if (!result.ok) {
+        if (updateNotifyWhenCurrent_.load())
+            toast(result.message.empty() ? "Update check failed." : result.message, colWarn);
+        return;
+    }
+    if (result.updateAvailable) {
+        toast(std::format("Update available: {}", result.latestVersion), colAccent);
+    } else if (updateNotifyWhenCurrent_.load()) {
+        toast("S2ModManager is up to date.", colAccent);
+    }
+}
+
 void App::render(int displayW, int displayH) {
     pollUe4ssInstall();
+    pollUpdateCheck();
     pollInstall();
     pollProfileShare();
     processToggles();
@@ -1063,8 +1108,17 @@ void App::renderTopBar() {
 void App::renderBanners() {
     float s = uiScale();
 
-    struct Banner { std::string text; ImU32 color; };
+    struct Banner { std::string text; ImU32 color; std::string url; };
     std::vector<Banner> banners;
+    {
+        core::UpdateCheckResult update;
+        { std::lock_guard<std::mutex> lk(updateMutex_); update = updateResult_; }
+        if (update.ok && update.updateAvailable)
+            banners.push_back({ std::format("Update available: {} (you have {}). Click to view the release.",
+                                            update.latestVersion, update.currentVersion),
+                                colAccent,
+                                update.releaseUrl.empty() ? core::kAppReleasesUrl : update.releaseUrl });
+    }
     if (sn2ModSettingsMissing())
         banners.push_back({ "An installed mod needs SN2ModSettings for its in-game options menu, "
                             "but it isn't installed. Add it like any other UE4SS mod.", colWarn });
@@ -1089,6 +1143,14 @@ void App::renderBanners() {
 
         float lineH = ImGui::GetTextLineHeight();
         textSnapped(dl, ImVec2(o.x + 14.0f * s, o.y + (bh - lineH) * 0.5f), colTextHi, banners[i].text.c_str());
+
+        if (!banners[i].url.empty()) {
+            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
+            if (ImGui::InvisibleButton("##bannerLink", ImVec2(w, bh)))
+                platform::openUrl(banners[i].url);
+            if (ImGui::IsItemHovered())
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        }
         ImGui::EndChild();
         ImGui::PopID();
     }
@@ -2247,6 +2309,36 @@ void App::renderSettingsView(float a) {
                 browseGame();
             if (!statusMessage_.empty())
                 ImGui::TextColored(toVec(colTextDim), "%s", statusMessage_.c_str());
+
+            ImGui::Dummy(ImVec2(0, 8));
+            fieldLabel("Updates");
+            core::UpdateCheckResult update;
+            { std::lock_guard<std::mutex> lk(updateMutex_); update = updateResult_; }
+            ImGui::TextColored(toVec(colTextDim), "Current version: %s", core::kAppVersion);
+            if (updateBusy_.load()) {
+                ImGui::TextColored(toVec(colTextDim), "Checking GitHub...");
+            } else if (update.ok && update.updateAvailable) {
+                ImGui::TextColored(toVec(colAccent), "Update available: %s", update.latestVersion.c_str());
+            } else if (update.ok) {
+                ImGui::TextColored(toVec(colTextDim), "Latest release: %s", update.latestVersion.c_str());
+            } else if (!update.message.empty()) {
+                ImGui::TextColored(toVec(colWarn), "%s", update.message.c_str());
+            }
+
+            if (ImGui::Checkbox("Include prereleases", &config_.includePrereleases)) {
+                saveConfig();
+                checkForUpdates(false);
+            }
+
+            ImGui::BeginDisabled(updateBusy_.load());
+            if (ui::ghostButton("Check for updates", ImVec2(150.0f * s, 28.0f * s)))
+                checkForUpdates(true);
+            ImGui::EndDisabled();
+            if (update.ok && update.updateAvailable) {
+                ImGui::SameLine();
+                if (ui::primaryButton("Open release", ImVec2(130.0f * s, 28.0f * s)))
+                    platform::openUrl(update.releaseUrl.empty() ? core::kAppReleasesUrl : update.releaseUrl);
+            }
 
             ImGui::Dummy(ImVec2(0, 8));
             fieldLabel("UE4SS");

@@ -72,6 +72,9 @@
     <ClCompile Include="src\core\Http.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\core\UpdateCheck.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\core\Archive.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -135,6 +138,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\core\Http.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\AppVersion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\UpdateCheck.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\core\Archive.h">

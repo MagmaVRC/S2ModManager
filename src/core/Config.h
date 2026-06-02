@@ -44,6 +44,8 @@ struct Config {
     float uiScale = 1.0f;
     /// <summary>Name of the currently active profile.</summary>
     std::string activeProfileName = "Vanilla";
+    /// <summary>Whether the update check considers prerelease tags as candidates.</summary>
+    bool includePrereleases = false;
     /// <summary>Background-image settings.</summary>
     BackgroundConfig background;
 

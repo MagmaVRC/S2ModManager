@@ -38,4 +38,8 @@ namespace platform {
 /// <param name="path">UTF-8 path to a folder or file.</param>
 void openInExplorer(const std::string& path);
 
+/// <summary>Opens a URL with the user's default browser.</summary>
+/// <param name="url">Absolute http(s) URL.</param>
+void openUrl(const std::string& url);
+
 }

@@ -3,6 +3,7 @@
 #include "../core/Game.h"
 #include "../core/ProfileStore.h"
 #include "../core/ProfileShareService.h"
+#include "../core/UpdateCheck.h"
 #include "History.h"
 #include "../ui/Anim.h"
 #include "../ui/Background.h"
@@ -105,6 +106,8 @@ private:
 
     void installUe4ss();          // starts the background download/install worker (no-op if already running)
     void pollUe4ssInstall();      // per-frame: applies the result once the worker finishes
+    void checkForUpdates(bool notifyWhenCurrent);   // starts a background app update check
+    void pollUpdateCheck();       // per-frame: applies update check results once done
     void reorderInStore();        // pushes the current mods_ order into the active profile
 
     void setModEnabled(int index, bool enabled, bool record = true);   // toggle a mod, optionally recording undo
@@ -176,6 +179,13 @@ private:
     std::atomic<bool> ue4ssDone_{ false };        // set by worker when finished; cleared by poll
     std::mutex ue4ssMsgMutex_;
     std::string ue4ssMsg_;                         // guarded by ue4ssMsgMutex_
+
+    std::thread updateThread_;
+    std::atomic<bool> updateBusy_{ false };
+    std::atomic<bool> updateDone_{ false };
+    std::atomic<bool> updateNotifyWhenCurrent_{ false };
+    std::mutex updateMutex_;
+    core::UpdateCheckResult updateResult_;
 
     struct StagedMod {
         std::filesystem::path tree;       // folder to install from

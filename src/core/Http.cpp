@@ -1,13 +1,13 @@
 #include "Http.h"
+#include "AppVersion.h"
 #include <curl/curl.h>
 #include <fstream>
 #include <mutex>
+#include <string>
 
 namespace core {
 
 namespace {
-
-constexpr const char* kUserAgent = "S2ModManager/0.1 (+https://github.com/Magma/S2ModManager)";
 
 void ensureGlobalInit() {
     static std::once_flag once;
@@ -34,7 +34,9 @@ int progressBridge(void* userdata, curl_off_t dltotal, curl_off_t dlnow, curl_of
 }
 
 void applyCommonOptions(CURL* curl) {
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, kUserAgent);
+    static const std::string userAgent =
+        std::string("S2ModManager/") + kAppVersion + " (+https://github.com/" + kAppRepo + ")";
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, userAgent.c_str());
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 8L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 20L);
