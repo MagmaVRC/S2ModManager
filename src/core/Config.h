@@ -30,6 +30,8 @@ struct Config {
     std::string libraryPath;
     /// <summary>Whether UE4SS has been detected or installed in the game.</summary>
     bool        ue4ssInstalled = false;
+    /// <summary>Installed ReShade version tag (e.g. "6.7.3"); empty when unknown or absent. Display only.</summary>
+    std::string reshadeVersion;
     /// <summary>Active theme mode: "subnautica", "dark", or "light".</summary>
     std::string themeMode = "subnautica";
     /// <summary>Editable Subnautica HUD palette (default theme).</summary>

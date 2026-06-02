@@ -1,5 +1,6 @@
 #include "ProfileStore.h"
 #include "Paths.h"
+#include "ReshadeIni.h"
 #include "Ue4ssMods.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -235,6 +236,7 @@ bool ProfileStore::load(const std::string& initialProfileName) {
 
     if (readIndex()) {
         active_ = readManifest(activeId_);
+        readPresetManifest(activeId_, activePresets_, activePresetId_);
         loaded_ = true;
         return true;
     }
@@ -397,6 +399,17 @@ std::string ProfileStore::duplicateProfile(const std::string& id, const std::str
         storeModFiles(pid, m, files);   // same ids; keys are profile-scoped so no clash
     }
     writeManifest(pid, src);
+
+    std::vector<ReshadePreset> srcPresets;
+    int srcActive = 0;
+    readPresetManifest(id, srcPresets, srcActive);
+    for (const auto& p : srcPresets) {
+        Bytes bytes;
+        if (vfs_.read(presetBlobKey(id, p.id), bytes))
+            vfs_.write(presetBlobKey(pid, p.id), bytes);
+    }
+    writePresetManifest(pid, srcPresets, srcActive);
+
     writeIndex();
     vfs_.commit();
     return pid;
@@ -500,10 +513,20 @@ bool ProfileStore::activate(const std::string& id) {
         return false;
 
     std::vector<ProfileMod> target = (id == activeId_) ? active_ : readManifest(id);
+    std::vector<ReshadePreset> targetPresets;
+    int targetActive = 0;
+    readPresetManifest(id, targetPresets, targetActive);
+
+    capturePresetEdits(activeId_, activePresets_);
     teardown(activeId_, active_);
     activeId_ = id;
     active_ = std::move(target);
     materialize(activeId_, active_);
+
+    activePresets_ = std::move(targetPresets);
+    activePresetId_ = targetActive;
+    materializePresets(activeId_, activePresets_, activePresetId_);
+
     writeIndex();
     return vfs_.commit();
 }
@@ -875,6 +898,184 @@ int ProfileStore::importModInto(const std::string& profileId, const ProfileMod& 
         active_ = std::move(mods);
     vfs_.commit();
     return m.id;
+}
+
+// ---- ReShade presets ----
+
+std::string ProfileStore::presetManifestKey(const std::string& pid) const {
+    return "profiles/" + pid + "/presets.json";
+}
+
+std::string ProfileStore::presetBlobKey(const std::string& pid, int presetId) const {
+    return "profiles/" + pid + "/reshade/" + std::to_string(presetId) + "/preset.ini";
+}
+
+std::filesystem::path ProfileStore::managedPresetPath(const std::string& name) const {
+    return paths_.binWin64 / "reshade-presets" / "managed" / pathFromUtf8(name + ".ini");
+}
+
+int ProfileStore::nextPresetId(const std::vector<ReshadePreset>& presets) const {
+    int n = 0;
+    for (const auto& p : presets) n = std::max(n, p.id);
+    return n + 1;
+}
+
+void ProfileStore::readPresetManifest(const std::string& pid, std::vector<ReshadePreset>& out, int& activeId) const {
+    out.clear();
+    activeId = 0;
+    std::string txt;
+    if (!vfs_.readText(presetManifestKey(pid), txt))
+        return;
+    nlohmann::json j = nlohmann::json::parse(txt, nullptr, false);
+    if (!j.is_object())
+        return;
+    activeId = j.value("activeId", 0);
+    if (j.contains("presets") && j["presets"].is_array())
+        for (const auto& e : j["presets"]) {
+            ReshadePreset p;
+            p.id = e.value("id", 0);
+            p.name = e.value("name", "");
+            if (p.id > 0 && !p.name.empty())
+                out.push_back(std::move(p));
+        }
+}
+
+void ProfileStore::writePresetManifest(const std::string& pid, const std::vector<ReshadePreset>& presets, int activeId) {
+    nlohmann::json arr = nlohmann::json::array();
+    for (const auto& p : presets)
+        arr.push_back({ {"id", p.id}, {"name", p.name} });
+    nlohmann::json j = { {"activeId", activeId}, {"presets", arr} };
+    vfs_.writeText(presetManifestKey(pid), j.dump(2));
+}
+
+void ProfileStore::capturePresetEdits(const std::string& pid, const std::vector<ReshadePreset>& presets) {
+    for (const auto& p : presets) {
+        Bytes disk;
+        if (readFileBytes(managedPresetPath(p.name), disk))
+            vfs_.write(presetBlobKey(pid, p.id), disk);
+    }
+}
+
+void ProfileStore::materializePresets(const std::string& pid, const std::vector<ReshadePreset>& presets, int activeId) {
+    std::error_code ec;
+    const std::filesystem::path dir = paths_.binWin64 / "reshade-presets" / "managed";
+    std::filesystem::remove_all(dir, ec);
+    if (presets.empty())
+        return;
+    std::filesystem::create_directories(dir, ec);
+    for (const auto& p : presets) {
+        Bytes bytes;
+        if (vfs_.read(presetBlobKey(pid, p.id), bytes))
+            writeFileBytes(managedPresetPath(p.name), bytes);
+    }
+    writeReshadePresetPath(activeId);
+}
+
+void ProfileStore::writeReshadePresetPath(int activeId) {
+    if (activeId == 0)
+        return;
+    for (const auto& p : activePresets_)
+        if (p.id == activeId) {
+            ReshadeIni::setPresetPath(paths_.binWin64 / "ReShade.ini", managedPresetPath(p.name));
+            return;
+        }
+}
+
+int ProfileStore::installPreset(const std::filesystem::path& iniFile) {
+    if (!loaded_)
+        return 0;
+    joinCommit();
+    Bytes bytes;
+    if (!readFileBytes(iniFile, bytes) || bytes.empty())
+        return 0;
+
+    std::string name = narrow(iniFile.stem().wstring());
+    if (!isSafeName(name))
+        name = "Preset";
+    auto taken = [&](const std::string& nm) {
+        for (const auto& p : activePresets_) if (p.name == nm) return true;
+        return false;
+    };
+    if (taken(name)) {
+        std::string base = name;
+        int n = 2;
+        do { name = base + " " + std::to_string(n++); } while (taken(name));
+    }
+
+    ReshadePreset p;
+    p.id = nextPresetId(activePresets_);
+    p.name = name;
+    vfs_.write(presetBlobKey(activeId_, p.id), bytes);
+    activePresets_.push_back(p);
+    if (activePresetId_ == 0)
+        activePresetId_ = p.id;
+
+    std::error_code ec;
+    std::filesystem::create_directories(managedPresetPath(p.name).parent_path(), ec);
+    writeFileBytes(managedPresetPath(p.name), bytes);
+    writeReshadePresetPath(activePresetId_);
+
+    writePresetManifest(activeId_, activePresets_, activePresetId_);
+    commitAsync();
+    return p.id;
+}
+
+bool ProfileStore::setActivePreset(int presetId) {
+    joinCommit();
+    if (presetId != 0 &&
+        std::find_if(activePresets_.begin(), activePresets_.end(),
+                     [&](const ReshadePreset& p) { return p.id == presetId; }) == activePresets_.end())
+        return false;
+    activePresetId_ = presetId;
+    writeReshadePresetPath(activePresetId_);
+    writePresetManifest(activeId_, activePresets_, activePresetId_);
+    commitAsync();
+    return true;
+}
+
+bool ProfileStore::renamePreset(int presetId, const std::string& newName) {
+    joinCommit();
+    if (!isSafeName(newName))
+        return false;
+    auto it = std::find_if(activePresets_.begin(), activePresets_.end(),
+                           [&](const ReshadePreset& p) { return p.id == presetId; });
+    if (it == activePresets_.end())
+        return false;
+    for (const auto& p : activePresets_)
+        if (p.id != presetId && p.name == newName)
+            return false;
+
+    std::error_code ec;
+    std::filesystem::rename(managedPresetPath(it->name), managedPresetPath(newName), ec);
+    it->name = newName;
+    if (activePresetId_ == presetId)
+        writeReshadePresetPath(activePresetId_);
+    writePresetManifest(activeId_, activePresets_, activePresetId_);
+    commitAsync();
+    return true;
+}
+
+bool ProfileStore::uninstallPreset(int presetId) {
+    joinCommit();
+    auto it = std::find_if(activePresets_.begin(), activePresets_.end(),
+                           [&](const ReshadePreset& p) { return p.id == presetId; });
+    if (it == activePresets_.end())
+        return false;
+
+    std::error_code ec;
+    std::filesystem::remove(managedPresetPath(it->name), ec);
+    vfs_.removePrefix("profiles/" + activeId_ + "/reshade/" + std::to_string(presetId) + "/");
+    activePresets_.erase(it);
+    if (activePresetId_ == presetId)
+        activePresetId_ = 0;
+    writePresetManifest(activeId_, activePresets_, activePresetId_);
+    commitAsync();
+    return true;
+}
+
+void ProfileStore::reapplyReshadePresets() {
+    joinCommit();
+    materializePresets(activeId_, activePresets_, activePresetId_);
 }
 
 }

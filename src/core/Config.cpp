@@ -41,6 +41,7 @@ void to_json(nlohmann::json& j, const Config& c) {
         {"ue4ssModsDir", c.ue4ssModsDir},
         {"libraryPath", c.libraryPath},
         {"ue4ssInstalled", c.ue4ssInstalled},
+        {"reshadeVersion", c.reshadeVersion},
         {"themeMode", c.themeMode},
         {"subnautica", paletteToJson(c.subnautica)},
         {"light", paletteToJson(c.light)},
@@ -69,6 +70,7 @@ void from_json(const nlohmann::json& j, Config& c) {
     c.ue4ssModsDir      = j.value("ue4ssModsDir", "");
     c.libraryPath       = j.value("libraryPath", "");
     c.ue4ssInstalled    = j.value("ue4ssInstalled", false);
+    c.reshadeVersion    = j.value("reshadeVersion", "");
     c.themeMode         = j.value("themeMode", "subnautica");
     c.subnautica        = j.contains("subnautica") ? paletteFromJson(j["subnautica"], defaultSubnautica()) : defaultSubnautica();
     c.light             = j.contains("light") ? paletteFromJson(j["light"], defaultLight()) : defaultLight();

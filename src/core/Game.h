@@ -27,8 +27,11 @@ public:
     /// <summary>Whether UE4SS is installed (ue4ss folder and dwmapi.dll present).</summary>
     [[nodiscard]] bool ue4ssInstalled() const;
 
-    /// <summary>Forgets the cached UE4SS check so the next call re-probes the disk (e.g. after install).</summary>
-    void invalidateCache() { cachedUe4ss_ = -1; }
+    /// <summary>Whether ReShade is installed (dxgi.dll and ReShade.ini present in Binaries/Win64).</summary>
+    [[nodiscard]] bool reshadeInstalled() const;
+
+    /// <summary>Forgets cached install checks so the next call re-probes the disk (e.g. after install).</summary>
+    void invalidateCache() { cachedUe4ss_ = -1; cachedReShade_ = -1; }
 
     /// <summary>Resolved paths. Empty when not <see cref="valid"/>.</summary>
     [[nodiscard]] const GamePaths& paths() const { return paths_; }
@@ -40,6 +43,7 @@ private:
     GamePaths paths_;
     bool valid_ = false;
     mutable int cachedUe4ss_ = -1;
+    mutable int cachedReShade_ = -1;
 };
 
 }

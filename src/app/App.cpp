@@ -2,6 +2,7 @@
 #include "Theme.h"
 #include "../core/AppVersion.h"
 #include "../core/Ue4ssInstall.h"
+#include "../core/ReshadeInstall.h"
 #include "../core/Archive.h"
 #include "../core/Paths.h"
 #include "../core/ModName.h"
@@ -268,6 +269,12 @@ App::~App() {
     }
     if (ue4ssThread_.joinable())
         ue4ssThread_.join();
+    if (reshadeInstallThread_.joinable())
+        reshadeInstallThread_.join();
+    if (reshadeUninstallThread_.joinable())
+        reshadeUninstallThread_.join();
+    if (reshadeShaderThread_.joinable())
+        reshadeShaderThread_.join();
     if (updateThread_.joinable())
         updateThread_.join();
     if (installThread_.joinable())
@@ -433,6 +440,9 @@ void App::loadMods() {
     for (const auto& m : store_->mods())
         mods_.push_back(makeEntry(m));
     sn2ModSettingsNeeded_ = anyModNeedsSn2ModSettings();
+
+    shaders_.emplace(game_.paths());
+    shaders_->load();
 }
 
 void App::syncModsFromStore() {
@@ -768,6 +778,177 @@ void App::pollUe4ssInstall() {
     }
 }
 
+namespace {
+bool reshadeStageBusy(ReshadeStage s) {
+    return s == ReshadeStage::Querying || s == ReshadeStage::Downloading ||
+           s == ReshadeStage::Installing || s == ReshadeStage::Verifying ||
+           s == ReshadeStage::Uninstalling;
+}
+}
+
+bool App::reshadeWorkerActive() const {
+    return reshadeStageBusy(reshadeInstallStage_.load()) ||
+           reshadeStageBusy(reshadeUninstallStage_.load()) ||
+           reshadeShaderBusy_.load();
+}
+
+void App::installReshade() {
+    if (!gameReady_) { toast("Locate the game first.", colWarn); return; }
+    if (reshadeWorkerActive())
+        return;
+    if (reshadeInstallThread_.joinable())
+        reshadeInstallThread_.join();
+
+    reshadeInstallDone_ = false;
+    reshadeInstallProgress_ = 0.0f;
+    reshadeInstallStage_ = ReshadeStage::Querying;
+    const core::GamePaths paths = game_.paths();
+    reshadeInstallThread_ = std::thread([this, paths] {
+        auto result = core::reshadeInstall(paths, [this](core::ReshadePhase ph, float frac) {
+            reshadeInstallProgress_.store(frac);
+            switch (ph) {
+                case core::ReshadePhase::Querying:    reshadeInstallStage_ = ReshadeStage::Querying;    break;
+                case core::ReshadePhase::Downloading: reshadeInstallStage_ = ReshadeStage::Downloading; break;
+                case core::ReshadePhase::Installing:  reshadeInstallStage_ = ReshadeStage::Installing;  break;
+                case core::ReshadePhase::Verifying:   reshadeInstallStage_ = ReshadeStage::Verifying;   break;
+            }
+        });
+        {
+            std::lock_guard<std::mutex> lk(reshadeMsgMutex_);
+            reshadeInstallMsg_ = result.message;
+            reshadeInstallVersion_ = result.version;
+        }
+        reshadeInstallStage_ = result.ok ? ReshadeStage::Done : ReshadeStage::Failed;
+        reshadeInstallDone_ = true;
+    });
+}
+
+void App::pollReshadeInstall() {
+    if (reshadeStageBusy(reshadeInstallStage_.load()))
+        ui::markAnimActive();
+    if (!reshadeInstallDone_.exchange(false))
+        return;
+    if (reshadeInstallThread_.joinable())
+        reshadeInstallThread_.join();
+
+    std::string msg, version;
+    {
+        std::lock_guard<std::mutex> lk(reshadeMsgMutex_);
+        msg = reshadeInstallMsg_;
+        version = reshadeInstallVersion_;
+    }
+    game_.invalidateCache();
+    if (reshadeInstallStage_.load() == ReshadeStage::Done) {
+        config_.reshadeVersion = version;
+        saveConfig();
+        if (shaders_)
+            shaders_->ensureRecursiveSearchPaths();
+        if (store_)
+            store_->reapplyReshadePresets();   // re-point a preset chosen before ReShade existed
+        toast(msg.empty() ? "ReShade installed." : msg, colAccent);
+    } else {
+        toast(msg.empty() ? "ReShade install failed." : msg, colWarn);
+    }
+}
+
+void App::uninstallReshade() {
+    if (!gameReady_)
+        return;
+    if (reshadeWorkerActive())
+        return;
+    if (reshadeUninstallThread_.joinable())
+        reshadeUninstallThread_.join();
+
+    reshadeUninstallDone_ = false;
+    reshadeUninstallStage_ = ReshadeStage::Uninstalling;
+    const core::GamePaths paths = game_.paths();
+    reshadeUninstallThread_ = std::thread([this, paths] {
+        auto result = core::reshadeUninstall(paths);
+        { std::lock_guard<std::mutex> lk(reshadeMsgMutex_); reshadeUninstallMsg_ = result.message; }
+        reshadeUninstallStage_ = result.ok ? ReshadeStage::Done : ReshadeStage::Failed;
+        reshadeUninstallDone_ = true;
+    });
+}
+
+void App::pollReshadeUninstall() {
+    if (reshadeStageBusy(reshadeUninstallStage_.load()))
+        ui::markAnimActive();
+    if (!reshadeUninstallDone_.exchange(false))
+        return;
+    if (reshadeUninstallThread_.joinable())
+        reshadeUninstallThread_.join();
+
+    std::string msg;
+    { std::lock_guard<std::mutex> lk(reshadeMsgMutex_); msg = reshadeUninstallMsg_; }
+    game_.invalidateCache();
+    if (reshadeUninstallStage_.load() == ReshadeStage::Done) {
+        config_.reshadeVersion.clear();
+        saveConfig();
+        if (shaders_)
+            shaders_->load();   // reconcile manifest against the now-empty reshade-shaders tree
+    }
+    toast(msg.empty() ? "ReShade uninstalled." : msg, colAccent);
+}
+
+void App::installStandardShaders(int branch) {
+    if (!gameReady_ || !shaders_)
+        return;
+    if (reshadeWorkerActive())
+        return;
+    if (reshadeShaderThread_.joinable())
+        reshadeShaderThread_.join();
+
+    reshadeShaderDone_ = false;
+    reshadeShaderProgress_ = 0.0f;
+    reshadeShaderBusy_ = true;
+    const core::StandardBranch b = branch == 1 ? core::StandardBranch::Latest : core::StandardBranch::Slim;
+    reshadeShaderThread_ = std::thread([this, b] {
+        auto result = shaders_->installStandard(b, [this](core::ShaderPhase, float frac) {
+            reshadeShaderProgress_.store(frac);
+        });
+        { std::lock_guard<std::mutex> lk(reshadeMsgMutex_); reshadeShaderMsg_ = result.message; }
+        reshadeShaderBusy_ = false;
+        reshadeShaderDone_ = true;
+    });
+}
+
+void App::importShaderPack() {
+    if (!gameReady_ || !shaders_ || reshadeWorkerActive())
+        return;
+    auto picked = platform::pickFile("Choose a shader pack (.zip)", L"Shader pack", L"*.zip");
+    if (!picked)
+        return;
+    if (reshadeShaderThread_.joinable())
+        reshadeShaderThread_.join();
+
+    reshadeShaderDone_ = false;
+    reshadeShaderProgress_ = 0.0f;
+    reshadeShaderBusy_ = true;
+    const std::filesystem::path source = core::pathFromUtf8(*picked);
+    const std::string name = core::narrow(source.stem().wstring());
+    reshadeShaderThread_ = std::thread([this, source, name] {
+        auto result = shaders_->importPack(source, name, [this](core::ShaderPhase, float frac) {
+            reshadeShaderProgress_.store(frac);
+        });
+        { std::lock_guard<std::mutex> lk(reshadeMsgMutex_); reshadeShaderMsg_ = result.message; }
+        reshadeShaderBusy_ = false;
+        reshadeShaderDone_ = true;
+    });
+}
+
+void App::pollReshadeShader() {
+    if (reshadeShaderBusy_.load())
+        ui::markAnimActive();
+    if (!reshadeShaderDone_.exchange(false))
+        return;
+    if (reshadeShaderThread_.joinable())
+        reshadeShaderThread_.join();
+
+    std::string msg;
+    { std::lock_guard<std::mutex> lk(reshadeMsgMutex_); msg = reshadeShaderMsg_; }
+    toast(msg.empty() ? "Shader pack updated." : msg, colAccent);
+}
+
 void App::checkForUpdates(bool notifyWhenCurrent) {
     if (updateBusy_.load())
         return;
@@ -810,6 +991,9 @@ void App::pollUpdateCheck() {
 
 void App::render(int displayW, int displayH) {
     pollUe4ssInstall();
+    pollReshadeInstall();
+    pollReshadeUninstall();
+    pollReshadeShader();
     pollUpdateCheck();
     pollInstall();
     pollProfileShare();
@@ -1165,6 +1349,7 @@ void App::renderProfileCombo(float width) {
     float comboH = ImGui::GetFrameHeight();
     ImGui::SetNextItemWidth(width);
     ImGui::SetNextWindowSizeConstraints(ImVec2(width, 0.0f), ImVec2(width, 10000.0f));
+    ImGui::BeginDisabled(reshadeWorkerActive());   // switching writes ReShade files the worker also touches
     if (ImGui::BeginCombo("##profile", store_->activeName().c_str(), ImGuiComboFlags_NoArrowButton)) {
         const std::vector<core::ProfileInfo> profiles = store_->profiles();
         const bool canDelete = profiles.size() > 1;
@@ -1209,6 +1394,7 @@ void App::renderProfileCombo(float width) {
             saveConfig();
         }
     }
+    ImGui::EndDisabled();
 
     if (ui::icons().tex(ui::Icon::ChevronDown)) {
         float cs = 13.0f * s;
@@ -2356,6 +2542,124 @@ void App::renderSettingsView(float a) {
                 ImGui::TextColored(toVec(colWarn), "Not installed");
                 if (ui::primaryButton("Install UE4SS", ImVec2(150.0f * s, 28.0f * s)))
                     installUe4ss();
+            }
+
+            ImGui::Dummy(ImVec2(0, 8));
+            fieldLabel("ReShade");
+            const ReshadeStage rstage = reshadeInstallStage_.load();
+            const bool reshadeOn = game_.reshadeInstalled();
+            const float availW = ImGui::GetContentRegionAvail().x;
+            if (reshadeStageBusy(rstage)) {
+                const char* phase = rstage == ReshadeStage::Querying ? "Contacting reshade.me..."
+                                  : rstage == ReshadeStage::Downloading ? "Downloading..."
+                                  : rstage == ReshadeStage::Installing ? "Running installer..."
+                                  : "Verifying...";
+                ui::progressBar("##reshadedl", reshadeInstallProgress_.load(),
+                                ImVec2(availW, ImGui::GetFrameHeight()));
+                ImGui::TextColored(toVec(colTextDim), "%s", phase);
+            } else if (reshadeUninstallStage_.load() == ReshadeStage::Uninstalling) {
+                ImGui::TextColored(toVec(colTextDim), "Uninstalling...");
+            } else if (reshadeOn) {
+                if (config_.reshadeVersion.empty())
+                    ImGui::TextColored(toVec(colAccent), "Installed");
+                else
+                    ImGui::TextColored(toVec(colAccent), "Installed (%s)", config_.reshadeVersion.c_str());
+                ImGui::SameLine();
+                if (ui::ghostButton("Uninstall", ImVec2(110.0f * s, 24.0f * s)))
+                    ImGui::OpenPopup("Uninstall ReShade?");
+
+                // Shader packs.
+                ImGui::Dummy(ImVec2(0, 6));
+                ImGui::TextColored(toVec(colTextDim), "Shader packs");
+                if (reshadeShaderBusy_.load()) {
+                    ui::progressBar("##reshadeshaders", reshadeShaderProgress_.load(),
+                                    ImVec2(availW, ImGui::GetFrameHeight()));
+                    ImGui::TextColored(toVec(colTextDim), "Working...");
+                } else {
+                    if (shaders_) {
+                        std::string packToRemove;
+                        std::string packToToggle;
+                        bool toggleTo = false;
+                        for (const auto& pk : shaders_->packs()) {
+                            ImGui::PushID(pk.name.c_str());
+                            bool en = pk.enabled;
+                            if (ImGui::Checkbox("##en", &en)) { packToToggle = pk.name; toggleTo = en; }
+                            ImGui::SameLine();
+                            ImGui::TextColored(toVec(colText), "%s (%d effects)", pk.name.c_str(), pk.effectCount);
+                            ImGui::SameLine(availW - 24.0f * s);
+                            if (ImGui::SmallButton("x"))
+                                packToRemove = pk.name;
+                            ImGui::PopID();
+                        }
+                        if (shaders_->packs().empty())
+                            ImGui::TextColored(toVec(colTextDim), "None installed. Presets need shaders to show.");
+                        if (!packToToggle.empty())
+                            shaders_->setEnabled(packToToggle, toggleTo);
+                        if (!packToRemove.empty())
+                            shaders_->uninstall(packToRemove);
+                    }
+                    static int branch = 0;
+                    ImGui::SetNextItemWidth(110.0f * s);
+                    const char* branches[] = { "slim", "latest" };
+                    ImGui::Combo("##shaderbranch", &branch, branches, 2);
+                    ImGui::SameLine();
+                    if (ui::ghostButton("Install standard", ImVec2(140.0f * s, 24.0f * s)))
+                        installStandardShaders(branch);
+                    ImGui::SameLine();
+                    if (ui::ghostButton("Import pack...", ImVec2(130.0f * s, 24.0f * s)))
+                        importShaderPack();
+                }
+
+                // Presets (active profile).
+                ImGui::Dummy(ImVec2(0, 6));
+                ImGui::TextColored(toVec(colTextDim), "Presets (%s)",
+                                   store_ ? store_->activeName().c_str() : "");
+                if (store_) {
+                    int active = store_->activePresetId();
+                    int presetToSelect = 0;
+                    int presetToRemove = 0;
+                    for (const auto& pr : store_->presets()) {
+                        ImGui::PushID(pr.id);
+                        bool sel = (pr.id == active);
+                        if (ImGui::RadioButton("##sel", sel))
+                            presetToSelect = pr.id;
+                        ImGui::SameLine();
+                        ImGui::TextColored(toVec(colText), "%s", pr.name.c_str());
+                        ImGui::SameLine(availW - 24.0f * s);
+                        if (ImGui::SmallButton("x"))
+                            presetToRemove = pr.id;
+                        ImGui::PopID();
+                    }
+                    if (store_->presets().empty())
+                        ImGui::TextColored(toVec(colTextDim), "No presets imported.");
+                    if (presetToSelect)
+                        store_->setActivePreset(presetToSelect);
+                    if (presetToRemove)
+                        store_->uninstallPreset(presetToRemove);
+                    if (ui::ghostButton("Import preset...", ImVec2(150.0f * s, 24.0f * s))) {
+                        if (auto picked = platform::pickFile("Choose a ReShade preset", L"ReShade preset", L"*.ini"))
+                            store_->installPreset(core::pathFromUtf8(*picked));
+                    }
+                }
+
+                if (ImGui::BeginPopupModal("Uninstall ReShade?", nullptr,
+                                           ImGuiWindowFlags_AlwaysAutoResize)) {
+                    ImGui::TextColored(toVec(colText),
+                        "Remove ReShade, its shaders and managed presets from the game?");
+                    ImGui::Dummy(ImVec2(0, 4));
+                    if (ui::dangerButton("Uninstall", ImVec2(120.0f * s, 28.0f * s))) {
+                        uninstallReshade();
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::SameLine();
+                    if (ui::ghostButton("Cancel", ImVec2(100.0f * s, 28.0f * s)))
+                        ImGui::CloseCurrentPopup();
+                    ImGui::EndPopup();
+                }
+            } else {
+                ImGui::TextColored(toVec(colWarn), "Not installed");
+                if (ui::primaryButton("Install ReShade", ImVec2(150.0f * s, 28.0f * s)))
+                    installReshade();
             }
 
             ImGui::EndTabItem();

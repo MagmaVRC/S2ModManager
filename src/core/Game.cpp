@@ -44,6 +44,15 @@ bool Game::ue4ssInstalled() const {
     return cachedUe4ss_ != 0;
 }
 
+bool Game::reshadeInstalled() const {
+    if (!valid_) return false;
+    if (cachedReShade_ >= 0) return cachedReShade_ != 0;
+    std::error_code ec;
+    cachedReShade_ = (std::filesystem::exists(paths_.binWin64 / "dxgi.dll", ec) &&
+                      std::filesystem::exists(paths_.binWin64 / "ReShade.ini", ec)) ? 1 : 0;
+    return cachedReShade_ != 0;
+}
+
 std::string Game::rootUtf8() const {
     return narrow(paths_.root.wstring());
 }

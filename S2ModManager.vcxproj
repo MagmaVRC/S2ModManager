@@ -127,6 +127,10 @@
     <ClCompile Include="src\core\Archive.cpp" />
     <ClCompile Include="src\core\Ue4ssInstall.cpp" />
     <ClCompile Include="src\core\ProfileStore.cpp" />
+    <ClCompile Include="src\core\ReshadeSignature.cpp" />
+    <ClCompile Include="src\core\ReshadeIni.cpp" />
+    <ClCompile Include="src\core\ReshadeInstall.cpp" />
+    <ClCompile Include="src\core\ReshadeShaders.cpp" />
     <ClCompile Include="src\core\net\Upnp.cpp" />
     <ClCompile Include="src\core\ConnectionKey.cpp" />
     <ClCompile Include="src\core\ProfileBundle.cpp" />
@@ -159,6 +163,11 @@
     <ClInclude Include="src\core\Archive.h" />
     <ClInclude Include="src\core\Ue4ssInstall.h" />
     <ClInclude Include="src\core\ProfileStore.h" />
+    <ClInclude Include="src\core\ReshadeSignature.h" />
+    <ClInclude Include="src\core\ReshadeIni.h" />
+    <ClInclude Include="src\core\ReshadeInstall.h" />
+    <ClInclude Include="src\core\ReshadeShaders.h" />
+    <ClInclude Include="src\core\ReshadePreset.h" />
     <ClInclude Include="src\core\net\Upnp.h" />
     <ClInclude Include="src\core\ConnectionKey.h" />
     <ClInclude Include="src\core\ProfileBundle.h" />

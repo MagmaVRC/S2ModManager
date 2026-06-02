@@ -1,6 +1,7 @@
 #pragma once
 #include "Compression.h"
 #include "Game.h"
+#include "ReshadePreset.h"
 #include "Vfs.h"
 #include <atomic>
 #include <filesystem>
@@ -128,6 +129,32 @@ public:
     int importModInto(const std::string& profileId, const ProfileMod& spec,
                       const std::vector<std::pair<std::string, Bytes>>& files);
 
+    // ---- ReShade presets (per profile) ----
+
+    /// <summary>The active profile's ReShade presets, in import order.</summary>
+    [[nodiscard]] const std::vector<ReshadePreset>& presets() const { return activePresets_; }
+
+    /// <summary>The id of the active profile's selected preset, or 0 if none.</summary>
+    [[nodiscard]] int activePresetId() const { return activePresetId_; }
+
+    /// <summary>Imports a ReShade preset .ini from disk into the active profile, materializing it
+    /// next to the game exe and selecting it if it is the first. Returns the new id, or 0.</summary>
+    int installPreset(const std::filesystem::path& iniFile);
+
+    /// <summary>Selects the active preset for the current profile and rewrites ReShade.ini's
+    /// PresetPath. Pass 0 to clear the selection.</summary>
+    bool setActivePreset(int presetId);
+
+    /// <summary>Renames a preset, renaming its materialized file and re-pointing ReShade.ini if active.</summary>
+    bool renamePreset(int presetId, const std::string& newName);
+
+    /// <summary>Removes a preset from the active profile (VFS blob + materialized file).</summary>
+    bool uninstallPreset(int presetId);
+
+    /// <summary>Re-materializes the active profile's presets next to the game exe and re-points
+    /// ReShade.ini. Used to reconcile after ReShade is installed.</summary>
+    void reapplyReshadePresets();
+
 private:
     [[nodiscard]] std::string manifestKey(const std::string& pid) const;
     [[nodiscard]] std::string blobKey(const std::string& pid, const ProfileMod& m, const std::string& rel) const;
@@ -143,6 +170,16 @@ private:
     void materialize(const std::string& pid, const std::vector<ProfileMod>& mods, std::size_t startIndex = 0);
     void teardown(const std::string& pid, const std::vector<ProfileMod>& mods);
     void writeUe4ssList(const std::vector<ProfileMod>& mods);   // mods.txt/json: built-ins + this profile's UE4SS
+
+    [[nodiscard]] std::string presetManifestKey(const std::string& pid) const;
+    [[nodiscard]] std::string presetBlobKey(const std::string& pid, int presetId) const;
+    [[nodiscard]] std::filesystem::path managedPresetPath(const std::string& name) const;
+    [[nodiscard]] int nextPresetId(const std::vector<ReshadePreset>& presets) const;
+    void readPresetManifest(const std::string& pid, std::vector<ReshadePreset>& out, int& activeId) const;
+    void writePresetManifest(const std::string& pid, const std::vector<ReshadePreset>& presets, int activeId);
+    void capturePresetEdits(const std::string& pid, const std::vector<ReshadePreset>& presets);
+    void materializePresets(const std::string& pid, const std::vector<ReshadePreset>& presets, int activeId);
+    void writeReshadePresetPath(int activeId);
 
     bool readIndex();
     void writeIndex();
@@ -163,6 +200,8 @@ private:
     int nextSeq_ = 1;                 // monotonic source of profile ids
     std::vector<ProfileMod> active_;  // active profile's mods, in load order
     std::vector<BuiltinMod> builtins_;
+    std::vector<ReshadePreset> activePresets_;   // active profile's ReShade presets
+    int activePresetId_ = 0;                     // selected preset for the active profile, or 0
     bool loaded_ = false;
 
     // Deferred save. install/uninstall/restore finish their in-memory + game-folder work
