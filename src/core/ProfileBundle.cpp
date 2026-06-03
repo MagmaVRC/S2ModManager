@@ -143,11 +143,20 @@ bool readModBytes(const ProfileStore& store, const BundleManifest& m,
     return filesInOrder.size() == m.mods[modIdx].files.size();
 }
 
+// A PAK stem becomes a filename component ("{NNN}_{stem}{ext}") on materialize, so a
+// separator or drive letter in it would let a hostile profile escape the paks/logic dir.
+static bool stemIsSafe(const std::string& stem) {
+    return !stem.empty() &&
+           stem.find('/') == std::string::npos &&
+           stem.find('\\') == std::string::npos &&
+           stem.find(':') == std::string::npos;
+}
+
 bool writeMod(ProfileStore& store, const std::string& profileId,
               const BundleMod& mod, const std::vector<Bytes>& filesInOrder) {
     if (filesInOrder.size() != mod.files.size() || mod.files.empty() || !isSafeName(mod.name))
         return false;
-    if (mod.kind == BundleModKind::Pak && mod.stem.empty())
+    if (mod.kind == BundleModKind::Pak && !stemIsSafe(mod.stem))
         return false;
 
     ProfileMod spec;
