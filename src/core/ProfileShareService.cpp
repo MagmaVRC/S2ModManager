@@ -49,10 +49,14 @@ std::string trim(std::string s) {
 
 // Loose dotted-IPv4 check — enough to reject an error page or empty body from the IP service.
 bool looksLikeIpv4(const std::string& s) {
-    int dots = 0, digits = 0;
+    int dots = 0, digits = 0, value = 0;
     for (char c : s) {
-        if (c == '.') { if (digits == 0) return false; ++dots; digits = 0; }
-        else if (std::isdigit(static_cast<unsigned char>(c))) { if (++digits > 3) return false; }
+        if (c == '.') { if (digits == 0) return false; ++dots; digits = 0; value = 0; }
+        else if (std::isdigit(static_cast<unsigned char>(c))) {
+            if (++digits > 3) return false;
+            value = value * 10 + (c - '0');
+            if (value > 255) return false;
+        }
         else return false;
     }
     return dots == 3 && digits > 0;
