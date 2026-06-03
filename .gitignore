@@ -7,3 +7,5 @@ Release/
 out/
 build/
 vcpkg_installed/
+CHANGELOG.md
+.full-review/
