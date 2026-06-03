@@ -32,7 +32,11 @@ library never disturbs the base game.
   one of them will load.
 - **One-click UE4SS install** - downloads the latest UE4SS release straight from GitHub
   and installs it into `Binaries/Win64`. Built-in UE4SS mods can be toggled, and
-  `mods.txt` is rewritten for you.
+  `mods.txt` is rewritten for you. The download is checked against GitHub's published
+  hash before anything is installed.
+- **ReShade support** - install ReShade and its shader packs, then manage per-profile
+  presets from inside the manager. The ReShade installer is verified against a pinned
+  signing certificate before it runs.
 - **Profile sharing** - send a whole profile two ways:
   - **Peer-to-peer**, directly over the internet. The host opens a port (automatically
     via UPnP, or one you've forwarded manually), publishes a short **connection key**,
@@ -41,6 +45,8 @@ library never disturbs the base game.
   - **Offline `.s2profile` files** - export a profile to a single file and import it
     anywhere, no network required.
 - **Launch** Subnautica 2 through Steam with your active profile already in place.
+- **Update notifications** - the manager checks GitHub for new releases and points you to
+  the download when one is available.
 
 
 ## Usage
@@ -117,4 +123,4 @@ Third-party license and notice information is listed in
 
 ## License
 
-TBD
+MIT. See [`LICENSE.txt`](LICENSE.txt).

@@ -1,9 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
   "name": "s2modmanager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A modern, local mod manager for Subnautica 2 (Dear ImGui + Direct3D 11).",
-  "homepage": "https://github.com/Magma/S2ModManager",
+  "homepage": "https://github.com/MagmaVRC/S2ModManager",
   "supports": "windows & x64",
   "builtin-baseline": "de03680510e75aa77d07750159adac4e570a6a81",
   "dependencies": [

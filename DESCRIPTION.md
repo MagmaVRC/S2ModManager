@@ -42,12 +42,15 @@ for you.
   The base game is never modified, so everything is reversible.
 - **One-click UE4SS install**: grabs the latest UE4SS straight from GitHub and sets it
   up, including built-in mods and `mods.txt`.
+- **ReShade support**: install ReShade and shader packs and manage per-profile presets,
+  without leaving the manager.
 - **Conflict warnings**: tells you when two mods clash so you're not left guessing why
   one isn't working.
 - **Profile sharing**: send a whole modded setup to a friend peer-to-peer over the
   internet (secured with a unique connection key), or export it to a single `.s2profile`
   file to share offline.
 - **One-click launch**: starts Subnautica 2 through Steam with your active setup ready.
+- **Update notifications**: checks GitHub for new releases and points you to the download.
 
 ## Requirements
 
