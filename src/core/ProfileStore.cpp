@@ -550,12 +550,16 @@ int ProfileStore::installFrom(const std::filesystem::path& sourceTree, const std
     const std::size_t firstNew = active_.size();   // newly added mods land at active_[firstNew..]
 
     // PAK groups: each .pak plus its same-stem siblings.
+    std::vector<std::filesystem::path> pakFiles;
     for (auto it = std::filesystem::recursive_directory_iterator(sourceTree, ec);
-         !ec && it != std::filesystem::recursive_directory_iterator(); ++it) {
-        if (!it->is_regular_file(ec) || lowerExt(it->path()) != ".pak")
-            continue;
-        const std::filesystem::path dir = it->path().parent_path();
-        const std::string stem = narrow(it->path().stem().wstring());
+         !ec && it != std::filesystem::recursive_directory_iterator(); ++it)
+        if (it->is_regular_file(ec) && lowerExt(it->path()) == ".pak")
+            pakFiles.push_back(it->path());
+    std::sort(pakFiles.begin(), pakFiles.end());
+
+    for (const auto& pak : pakFiles) {
+        const std::filesystem::path dir = pak.parent_path();
+        const std::string stem = narrow(pak.stem().wstring());
 
         std::string subdir = kLogicMods;
         for (const auto& part : dir)
@@ -602,6 +606,7 @@ int ProfileStore::installFrom(const std::filesystem::path& sourceTree, const std
             if (it->is_directory(ec) && looksLikeUe4ssMod(it->path()))
                 ue4ssDirs.emplace_back(it->path(), narrow(it->path().filename().wstring()));
     }
+    std::sort(ue4ssDirs.begin(), ue4ssDirs.end());
     for (const auto& [folder, name] : ue4ssDirs) {
         if (!isSafeName(name) || isBuiltin(name))
             continue;
