@@ -72,7 +72,8 @@ bool Vfs::open(const std::filesystem::path& file) {
             return false;
         e.compression = comp;
         e.onDisk = true;
-        if (e.offset + e.compSize > indexOffset || e.rawSize > 4ULL * 1024 * 1024 * 1024)
+        if (e.offset > indexOffset || e.compSize > indexOffset - e.offset ||
+            e.rawSize > 4ULL * 1024 * 1024 * 1024)
             return false;
         entries_[path] = std::move(e);
     }
@@ -193,8 +194,7 @@ bool Vfs::commit() {
         ~TmpGuard() { if (!committed) { std::error_code e; std::filesystem::remove(p, e); } }
     } guard{tmp};
 
-    std::vector<std::uint64_t> newOffsets;
-    newOffsets.reserve(entries_.size());
+    std::map<std::string, std::uint64_t> newOffsets;
 
     {
         std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
@@ -212,14 +212,13 @@ bool Vfs::commit() {
             Bytes comp;
             if (!readCompressed(e, comp))
                 return false;
-            newOffsets.push_back(static_cast<std::uint64_t>(out.tellp()));
+            newOffsets[path] = static_cast<std::uint64_t>(out.tellp());
             if (!comp.empty())
                 out.write(reinterpret_cast<const char*>(comp.data()),
                           static_cast<std::streamsize>(comp.size()));
         }
 
         std::uint64_t idx = static_cast<std::uint64_t>(out.tellp());
-        std::size_t i = 0;
         for (auto& [path, e] : entries_) {
             if (path.size() > 65535) return false;
             std::uint16_t plen = static_cast<std::uint16_t>(path.size());
@@ -229,8 +228,7 @@ bool Vfs::commit() {
             put(out, e.rawSize);
             put(out, e.compSize);
             put(out, e.crc);
-            put(out, newOffsets[i]);
-            ++i;
+            put(out, newOffsets[path]);
         }
 
         out.seekp(8, std::ios::beg);
@@ -246,10 +244,9 @@ bool Vfs::commit() {
 
     guard.committed = true;
 
-    std::size_t i = 0;
     for (auto& [path, e] : entries_) {
         e.onDisk = true;
-        e.offset = newOffsets[i++];
+        e.offset = newOffsets[path];
         e.blob.clear();
         e.blob.shrink_to_fit();
     }

@@ -91,7 +91,7 @@ bool lzmaDecompress(const Bytes& in, std::size_t rawSize, Bytes& out) {
     lzma_mt mt = {};
     mt.threads = threads;
     mt.memlimit_threading = 256ULL * 1024 * 1024;   // per-run budget before falling back to 1 thread
-    mt.memlimit_stop = UINT64_MAX;                  // size already bounded by rawSize/kMaxRaw
+    mt.memlimit_stop = 1024ULL * 1024 * 1024;       // reject streams whose decoder memory blows past 1 GiB
     lzma_stream strm = LZMA_STREAM_INIT;
     if (lzma_stream_decoder_mt(&strm, &mt) != LZMA_OK) {
         out.clear();
