@@ -2,10 +2,46 @@
 #include "Http.h"
 #include "Archive.h"
 #include <nlohmann/json.hpp>
+#include <openssl/evp.h>
+#include <algorithm>
+#include <fstream>
+#include <iterator>
+#include <string_view>
+#include <vector>
 
 namespace core {
 
 namespace {
+
+std::string sha256HexOfFile(const std::filesystem::path& p) {
+    std::ifstream in(p, std::ios::binary);
+    if (!in)
+        return {};
+    std::vector<unsigned char> buf((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    unsigned char md[EVP_MAX_MD_SIZE];
+    unsigned int mdLen = 0;
+    if (EVP_Digest(buf.data(), buf.size(), md, &mdLen, EVP_sha256(), nullptr) != 1)
+        return {};
+    static const char hex[] = "0123456789abcdef";
+    std::string out;
+    out.reserve(static_cast<std::size_t>(mdLen) * 2);
+    for (unsigned int i = 0; i < mdLen; ++i) {
+        out += hex[md[i] >> 4];
+        out += hex[md[i] & 0x0F];
+    }
+    return out;
+}
+
+bool digestMatches(const std::string& digest, const std::filesystem::path& file) {
+    constexpr std::string_view prefix = "sha256:";
+    if (!digest.starts_with(prefix))
+        return true;
+    std::string want = digest.substr(prefix.size());
+    std::transform(want.begin(), want.end(), want.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::string got = sha256HexOfFile(file);
+    return !got.empty() && got == want;
+}
 
 // Subnautica 2 (UE5) needs the prerelease build; /releases/latest returns the
 // old stable one that lacks the dwmapi.dll + ue4ss/ layout.
@@ -21,6 +57,7 @@ bool pickAsset(const nlohmann::json& release, LatestRelease& rel) {
             rel.version = release.value("tag_name", "");
             rel.assetName = name;
             rel.assetUrl = a.value("browser_download_url", "");
+            rel.assetDigest = a.value("digest", "");
             return !rel.assetUrl.empty();
         }
     }
@@ -65,6 +102,11 @@ InstallResult install(const GamePaths& paths,
     report(InstallPhase::Downloading, 0.0f);
     if (!downloadFile(rel->assetUrl, tmp, [&](float f) { report(InstallPhase::Downloading, f); }))
         return { false, "Download failed (" + rel->assetName + ")." };
+
+    if (!digestMatches(rel->assetDigest, tmp)) {
+        std::filesystem::remove(tmp, ec);
+        return { false, "The downloaded UE4SS archive failed its integrity check and was discarded." };
+    }
 
     report(InstallPhase::Extracting, 0.0f);
     const std::filesystem::path stage = std::filesystem::temp_directory_path(ec) / L"S2MM_ue4ss_extract";

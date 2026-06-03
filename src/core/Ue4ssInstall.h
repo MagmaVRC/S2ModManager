@@ -9,9 +9,10 @@ namespace core {
 
 /// <summary>A UE4SS release asset resolved from GitHub.</summary>
 struct LatestRelease {
-    std::string version;    // release tag, e.g. "v3.0.1"
-    std::string assetUrl;   // direct download URL for the zip
-    std::string assetName;  // e.g. "UE4SS_v3.0.1.zip"
+    std::string version;     // release tag, e.g. "v3.0.1"
+    std::string assetUrl;    // direct download URL for the zip
+    std::string assetName;   // e.g. "UE4SS_v3.0.1.zip"
+    std::string assetDigest; // GitHub-reported integrity digest, e.g. "sha256:abc..." (may be empty)
 };
 
 /// <summary>Result of an install attempt.</summary>
