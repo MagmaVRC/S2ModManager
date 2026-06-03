@@ -36,9 +36,7 @@ public:
     /// <summary>Sends one frame: 4-byte big-endian length followed by the payload.</summary>
     [[nodiscard]] bool sendFrame(const Bytes& payload, std::string& err);
 
-    /// <summary>Receives one frame into <paramref name="out"/>, rejecting any frame whose
-    /// announced length exceeds <paramref name="maxLen"/> before allocating. Use a tight
-    /// bound for handshake frames so an unauthenticated peer can't drive a huge allocation.</summary>
+    /// <summary>Receives one frame, rejecting any longer than <paramref name="maxLen"/> bytes.</summary>
     [[nodiscard]] bool recvFrame(Bytes& out, std::uint32_t maxLen, std::string& err);
 
     /// <summary>Receives one frame, bounded by the default maximum frame size.</summary>

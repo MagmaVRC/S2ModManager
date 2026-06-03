@@ -25,9 +25,6 @@ constexpr std::uint16_t kPortMax = 65535;
 constexpr int kPortAttempts = 3;
 // Greeting that gates non-app connectors: "S2MP" + protocol version byte.
 constexpr std::array<std::uint8_t, 5> kGreeting = { 'S', '2', 'M', 'P', 1 };
-// Tight bounds for the small fixed-size handshake frames (greeting, nonce, signature) and the
-// JSON manifest, so a peer cannot announce a multi-GiB frame and drive a huge allocation before
-// it has authenticated. Per-file data frames keep the transport's default (large) bound.
 constexpr std::uint32_t kMaxHandshakeFrame = 1024;
 constexpr std::uint32_t kMaxManifestFrame  = 16u * 1024 * 1024;
 
@@ -450,7 +447,7 @@ void ProfileShareService::receiveWorker(GamePaths paths, ProfileStore* store, st
                 return;
             }
             std::uint64_t rawSize = getU64(payload.data());
-            if (rawSize > 4ull * 1024 * 1024 * 1024) {   // far above any real mod file
+            if (rawSize > 4ull * 1024 * 1024 * 1024) {
                 fail("The host sent an implausibly large file.");
                 running_.store(false);
                 return;

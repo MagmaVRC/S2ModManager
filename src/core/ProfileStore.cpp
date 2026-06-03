@@ -47,8 +47,6 @@ bool readFileBytes(const std::filesystem::path& p, Bytes& out) {
     return in.good() || in.eof();
 }
 
-// Lexical containment guard: true only when `full` resolves inside `base`. Blocks a hostile
-// mod field (e.g. a crafted PAK stem) from escaping the target dir via separators or "..".
 bool withinDir(const std::filesystem::path& base, const std::filesystem::path& full) {
     const auto rel = full.lexically_normal().lexically_relative(base.lexically_normal());
     return !rel.empty() && *rel.begin() != std::filesystem::path("..");
