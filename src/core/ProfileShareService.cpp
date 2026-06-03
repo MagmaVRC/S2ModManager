@@ -25,6 +25,11 @@ constexpr std::uint16_t kPortMax = 65535;
 constexpr int kPortAttempts = 3;
 // Greeting that gates non-app connectors: "S2MP" + protocol version byte.
 constexpr std::array<std::uint8_t, 5> kGreeting = { 'S', '2', 'M', 'P', 1 };
+// Tight bounds for the small fixed-size handshake frames (greeting, nonce, signature) and the
+// JSON manifest, so a peer cannot announce a multi-GiB frame and drive a huge allocation before
+// it has authenticated. Per-file data frames keep the transport's default (large) bound.
+constexpr std::uint32_t kMaxHandshakeFrame = 1024;
+constexpr std::uint32_t kMaxManifestFrame  = 16u * 1024 * 1024;
 
 void putU64(Bytes& b, std::uint64_t v) {
     for (int i = 7; i >= 0; --i)
@@ -324,7 +329,7 @@ void ProfileShareService::hostWorker(GamePaths paths, ProfileStore* store, std::
         Bytes greeting(kGreeting.begin(), kGreeting.end());
         Bytes nonce, sig;
         if (ok) ok = ps->sendFrame(greeting, err);
-        if (ok) ok = ps->recvFrame(nonce, err) && nonce.size() == 32;
+        if (ok) ok = ps->recvFrame(nonce, kMaxHandshakeFrame, err) && nonce.size() == 32;
         if (ok) {
             sig = sign(keys.privateKey, nonce);
             ok = !sig.empty() && ps->sendFrame(sig, err);
@@ -386,7 +391,7 @@ void ProfileShareService::receiveWorker(GamePaths paths, ProfileStore* store, st
     }
 
     Bytes greeting;
-    if (!ps->recvFrame(greeting, err) ||
+    if (!ps->recvFrame(greeting, kMaxHandshakeFrame, err) ||
         greeting.size() != kGreeting.size() ||
         !std::equal(kGreeting.begin(), kGreeting.end(), greeting.begin())) {
         fail("This host is not an S2ModManager peer.");
@@ -402,7 +407,7 @@ void ProfileShareService::receiveWorker(GamePaths paths, ProfileStore* store, st
         return;
     }
     Bytes sig;
-    if (!ps->sendFrame(nonce, err) || !ps->recvFrame(sig, err)) {
+    if (!ps->sendFrame(nonce, err) || !ps->recvFrame(sig, kMaxHandshakeFrame, err)) {
         fail("Handshake failed: " + err);
         running_.store(false);
         return;
@@ -415,7 +420,7 @@ void ProfileShareService::receiveWorker(GamePaths paths, ProfileStore* store, st
 
     setStatus(ShareState::Transferring, "Receiving profile...");
     Bytes manifestBytes;
-    if (!ps->recvFrame(manifestBytes, err)) {
+    if (!ps->recvFrame(manifestBytes, kMaxManifestFrame, err)) {
         fail("Failed to read the profile manifest: " + err);
         running_.store(false);
         return;
@@ -445,6 +450,11 @@ void ProfileShareService::receiveWorker(GamePaths paths, ProfileStore* store, st
                 return;
             }
             std::uint64_t rawSize = getU64(payload.data());
+            if (rawSize > 4ull * 1024 * 1024 * 1024) {   // far above any real mod file
+                fail("The host sent an implausibly large file.");
+                running_.store(false);
+                return;
+            }
             Bytes raw;
             if (rawSize > 0) {
                 Bytes comp(payload.begin() + 8, payload.end());

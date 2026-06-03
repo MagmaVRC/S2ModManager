@@ -173,17 +173,21 @@ bool PeerSession::sendFrame(const Bytes& payload, std::string& err) {
     return sendAll(payload.data(), payload.size(), err);
 }
 
-bool PeerSession::recvFrame(Bytes& out, std::string& err) {
+bool PeerSession::recvFrame(Bytes& out, std::uint32_t maxLen, std::string& err) {
     std::uint8_t hdr[4];
     if (!recvAll(hdr, 4, err)) return false;
     std::uint32_t len = (static_cast<std::uint32_t>(hdr[0]) << 24) |
                         (static_cast<std::uint32_t>(hdr[1]) << 16) |
                         (static_cast<std::uint32_t>(hdr[2]) << 8) |
                         static_cast<std::uint32_t>(hdr[3]);
-    if (len > kMaxFrame) { err = "Peer announced an oversized frame."; return false; }
+    if (len > maxLen) { err = "Peer announced an oversized frame."; return false; }
     out.resize(len);
     if (len == 0) return true;
     return recvAll(out.data(), len, err);
+}
+
+bool PeerSession::recvFrame(Bytes& out, std::string& err) {
+    return recvFrame(out, kMaxFrame, err);
 }
 
 }  // namespace core
