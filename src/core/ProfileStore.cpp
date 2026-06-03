@@ -47,6 +47,13 @@ bool readFileBytes(const std::filesystem::path& p, Bytes& out) {
     return in.good() || in.eof();
 }
 
+// Lexical containment guard: true only when `full` resolves inside `base`. Blocks a hostile
+// mod field (e.g. a crafted PAK stem) from escaping the target dir via separators or "..".
+bool withinDir(const std::filesystem::path& base, const std::filesystem::path& full) {
+    const auto rel = full.lexically_normal().lexically_relative(base.lexically_normal());
+    return !rel.empty() && *rel.begin() != std::filesystem::path("..");
+}
+
 bool writeFileBytes(const std::filesystem::path& p, const Bytes& data) {
     std::error_code ec;
     std::filesystem::create_directories(p.parent_path(), ec);
@@ -461,15 +468,18 @@ void ProfileStore::materialize(const std::string& pid, const std::vector<Profile
             std::filesystem::create_directories(dir, ec);
             for (const auto& ext : m.exts) {
                 Bytes bytes;
-                if (vfs_.read(blobKey(pid, m, m.stem + ext), bytes))
-                    writeFileBytes(dir / pathFromUtf8(std::format("{:03}_{}{}", pakNumber, m.stem, ext)), bytes);
+                const std::filesystem::path target =
+                    dir / pathFromUtf8(std::format("{:03}_{}{}", pakNumber, m.stem, ext));
+                if (withinDir(dir, target) && vfs_.read(blobKey(pid, m, m.stem + ext), bytes))
+                    writeFileBytes(target, bytes);
             }
         } else {
             const std::filesystem::path folder = paths_.ue4ssMods / pathFromUtf8(m.name);
             for (const auto& rel : m.files) {
                 Bytes bytes;
-                if (vfs_.read(blobKey(pid, m, rel), bytes))
-                    writeFileBytes(folder / pathFromUtf8(rel), bytes);
+                const std::filesystem::path target = folder / pathFromUtf8(rel);
+                if (withinDir(paths_.ue4ssMods, target) && vfs_.read(blobKey(pid, m, rel), bytes))
+                    writeFileBytes(target, bytes);
             }
         }
     }
