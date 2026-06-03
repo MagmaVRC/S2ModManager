@@ -112,6 +112,7 @@ void ProfileStore::commitAsync() {
 }
 
 void ProfileStore::flush() {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     commitAsync();   // write pending changes (e.g. batched enable/disable) on the worker; no-op if clean
 }
 
@@ -182,6 +183,7 @@ void ProfileStore::saveBuiltins() {
 }
 
 bool ProfileStore::setBuiltinEnabled(const std::string& name, bool enabled) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     for (auto& b : builtins_)
         if (b.name == name) {
@@ -233,6 +235,7 @@ void ProfileStore::writeManifest(const std::string& pid, const std::vector<Profi
 // ---- load + migration ----
 
 bool ProfileStore::load(const std::string& initialProfileName) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     if (!vfs_.open(dataFile()))
         return false;
@@ -347,6 +350,7 @@ std::string ProfileStore::activeName() const {
 }
 
 std::string ProfileStore::createProfile(const std::string& name) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     const std::string pid = "p" + std::to_string(nextSeq_++);
     profiles_.push_back({ pid, name });
@@ -357,6 +361,7 @@ std::string ProfileStore::createProfile(const std::string& name) {
 }
 
 bool ProfileStore::renameProfile(const std::string& id, const std::string& name) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     for (auto& p : profiles_)
         if (p.id == id) {
@@ -368,6 +373,7 @@ bool ProfileStore::renameProfile(const std::string& id, const std::string& name)
 }
 
 bool ProfileStore::deleteProfile(const std::string& id) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     if (profiles_.size() <= 1)
         return false;
@@ -385,6 +391,7 @@ bool ProfileStore::deleteProfile(const std::string& id) {
 }
 
 std::string ProfileStore::duplicateProfile(const std::string& id, const std::string& newName) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     const std::vector<ProfileMod> src = readManifest(id);
     const std::string pid = "p" + std::to_string(nextSeq_++);
@@ -515,6 +522,7 @@ void ProfileStore::writeUe4ssList(const std::vector<ProfileMod>& mods) {
 // ---- activate / reconcile ----
 
 bool ProfileStore::activate(const std::string& id) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     if (std::find_if(profiles_.begin(), profiles_.end(),
                      [&](const ProfileInfo& p) { return p.id == id; }) == profiles_.end())
@@ -542,6 +550,7 @@ bool ProfileStore::activate(const std::string& id) {
 // ---- active-profile mod operations ----
 
 int ProfileStore::installFrom(const std::filesystem::path& sourceTree, const std::string& displayName) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     if (!loaded_)
         return 0;
     joinCommit();
@@ -646,6 +655,7 @@ int ProfileStore::installFrom(const std::filesystem::path& sourceTree, const std
 }
 
 bool ProfileStore::setEnabled(int modId, bool enabled) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     auto it = std::find_if(active_.begin(), active_.end(), [&](const ProfileMod& m) { return m.id == modId; });
     if (it == active_.end())
@@ -724,6 +734,7 @@ bool ProfileStore::setEnabled(int modId, bool enabled) {
 }
 
 bool ProfileStore::applyOrder(const std::vector<int>& orderedIds) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     std::vector<ProfileMod> seq;
     seq.reserve(active_.size());
@@ -781,6 +792,7 @@ bool ProfileStore::applyOrder(const std::vector<int>& orderedIds) {
 }
 
 bool ProfileStore::setSubdir(int modId, const std::string& subdir) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     for (auto& m : active_)
         if (m.id == modId && m.kind == ModKind::Pak) {
@@ -796,6 +808,7 @@ bool ProfileStore::setSubdir(int modId, const std::string& subdir) {
 }
 
 bool ProfileStore::uninstall(int modId) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     auto it = std::find_if(active_.begin(), active_.end(), [&](const ProfileMod& m) { return m.id == modId; });
     if (it == active_.end())
@@ -841,6 +854,7 @@ bool ProfileStore::uninstall(int modId) {
 }
 
 bool ProfileStore::stash(int modId, Stashed& out) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     auto it = std::find_if(active_.begin(), active_.end(), [&](const ProfileMod& m) { return m.id == modId; });
     if (it == active_.end())
         return false;
@@ -851,6 +865,7 @@ bool ProfileStore::stash(int modId, Stashed& out) {
 }
 
 int ProfileStore::restore(const Stashed& s) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     const std::size_t firstNew = active_.size();
     ProfileMod m = s.mod;
@@ -864,6 +879,7 @@ int ProfileStore::restore(const Stashed& s) {
 }
 
 bool ProfileStore::readModFiles(int modId, std::vector<std::pair<std::string, Bytes>>& out) const {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     auto it = std::find_if(active_.begin(), active_.end(), [&](const ProfileMod& m) { return m.id == modId; });
     if (it == active_.end())
@@ -889,6 +905,7 @@ bool ProfileStore::readModFiles(int modId, std::vector<std::pair<std::string, By
 
 int ProfileStore::importModInto(const std::string& profileId, const ProfileMod& spec,
                                 const std::vector<std::pair<std::string, Bytes>>& files) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     const bool isActive = profileId == activeId_;
     std::vector<ProfileMod> mods = isActive ? active_ : readManifest(profileId);
@@ -995,6 +1012,7 @@ void ProfileStore::writeReshadePresetPath(int activeId) {
 }
 
 int ProfileStore::installPreset(const std::filesystem::path& iniFile) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     if (!loaded_)
         return 0;
     joinCommit();
@@ -1034,6 +1052,7 @@ int ProfileStore::installPreset(const std::filesystem::path& iniFile) {
 }
 
 bool ProfileStore::setActivePreset(int presetId) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     if (presetId != 0 &&
         std::find_if(activePresets_.begin(), activePresets_.end(),
@@ -1047,6 +1066,7 @@ bool ProfileStore::setActivePreset(int presetId) {
 }
 
 bool ProfileStore::renamePreset(int presetId, const std::string& newName) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     if (!isSafeName(newName))
         return false;
@@ -1069,6 +1089,7 @@ bool ProfileStore::renamePreset(int presetId, const std::string& newName) {
 }
 
 bool ProfileStore::uninstallPreset(int presetId) {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     auto it = std::find_if(activePresets_.begin(), activePresets_.end(),
                            [&](const ReshadePreset& p) { return p.id == presetId; });
@@ -1087,6 +1108,7 @@ bool ProfileStore::uninstallPreset(int presetId) {
 }
 
 void ProfileStore::reapplyReshadePresets() {
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
     joinCommit();
     materializePresets(activeId_, activePresets_, activePresetId_);
 }

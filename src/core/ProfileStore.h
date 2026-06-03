@@ -5,6 +5,7 @@
 #include "Vfs.h"
 #include <atomic>
 #include <filesystem>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -209,6 +210,11 @@ private:
     // that touches vfs_ calls joinCommit() first, so vfs_ only ever has one owner at a time.
     mutable std::thread commitThread_;
     mutable std::atomic<bool> committing_{ false };
+
+    // Serializes every public entry point that touches vfs_ so a background share worker
+    // (importModInto / readModFiles) cannot race the UI thread. Recursive: some operations
+    // call siblings (deleteProfile -> activate, stash -> uninstall).
+    mutable std::recursive_mutex mutex_;
 };
 
 }
