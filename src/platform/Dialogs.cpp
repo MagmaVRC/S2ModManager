@@ -174,6 +174,8 @@ void openInExplorer(const std::string& path) {
 }
 
 void openUrl(const std::string& url) {
+    if (!url.starts_with("http://") && !url.starts_with("https://"))
+        return;
     std::wstring wu = core::widen(url);
     ShellExecuteW(nullptr, L"open", wu.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }

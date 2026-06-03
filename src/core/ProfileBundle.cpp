@@ -50,7 +50,7 @@ bool safeRel(const std::string& rel) {
         return false;
     if (rel.front() == '/' || rel.front() == '\\')
         return false;
-    return !(rel.size() > 1 && rel[1] == ':');   // reject drive-absolute paths
+    return rel.find(':') == std::string::npos;   // reject drive letters and NTFS data streams
 }
 
 }  // namespace

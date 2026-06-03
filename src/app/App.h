@@ -179,6 +179,7 @@ private:
     float saveTimer_ = 0.0f;
     bool saveDirty_ = false;
     int pendingUninstall_ = -1;
+    bool requestUninstallConfirm_ = false;
 
     std::vector<Toast> toasts_;
     float dpiScale_ = 1.0f;
@@ -227,6 +228,7 @@ private:
         std::filesystem::path scratch;    // temp dir to remove after install; empty for dropped folders
         std::string name;                 // display name
         bool extractFailed = false;       // archive couldn't be read
+        bool copyFailed = false;          // a PAK sibling failed to stage
         std::string failName;             // source name for the failure toast
     };
     std::thread installThread_;

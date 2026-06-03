@@ -61,6 +61,8 @@ void applyCommonOptions(CURL* curl) {
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 8L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 20L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 30L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");   // negotiate every built-in decompressor

@@ -568,9 +568,12 @@ void App::installMods(const std::vector<std::filesystem::path>& sources) {
                 for (auto sib = std::filesystem::directory_iterator(src.parent_path(), ec);
                      !ec && sib != std::filesystem::directory_iterator(); ++sib)
                     if (sib->is_regular_file(ec) && core::narrow(sib->path().stem().wstring()) == stem &&
-                        isPakFamily(lowerExt(sib->path())))
+                        isPakFamily(lowerExt(sib->path()))) {
                         std::filesystem::copy_file(sib->path(), sm.scratch / sib->path().filename(),
-                            std::filesystem::copy_options::overwrite_existing, ec), ec.clear();
+                            std::filesystem::copy_options::overwrite_existing, ec);
+                        if (ec) sm.copyFailed = true;
+                        ec.clear();
+                    }
                 sm.tree = sm.scratch;
             } else {
                 sm.scratch = tempRoot / core::pathFromUtf8(sm.name);
@@ -608,6 +611,8 @@ void App::pollInstall() {
             continue;
         }
         const int added = store_ ? store_->installFrom(sm.tree, sm.name) : 0;
+        if (sm.copyFailed)
+            toast(std::format("Some files of '{}' couldn't be copied.", sm.name), colWarn);
         installedCount += added;
         if (!sm.scratch.empty())
             std::filesystem::remove_all(sm.scratch, ec);
@@ -1582,7 +1587,7 @@ void App::renderShareModal() {
             ImGui::Spacing();
             ImGui::BeginDisabled(!store_.has_value());
             if (ui::primaryButton("Generate connection key", ui::icons().tex(ui::Icon::Key), ImVec2(W, 34.0f * s)) && store_) {
-                platform::ensureInboundAllowed(L"S2ModManager P2P Share");
+                std::thread([] { platform::ensureInboundAllowed(L"S2ModManager P2P Share"); }).detach();
                 core::HostOptions opts;
                 opts.useUpnp = (hostPortMode_ == 0);
                 if (!opts.useUpnp) {
@@ -1903,7 +1908,7 @@ void App::renderModList() {
             setModEnabled(selected_, !mods_[selected_].enabled);
         if (ImGui::IsKeyPressed(ImGuiKey_Delete) && selected_ >= 0 && selected_ < static_cast<int>(mods_.size())) {
             pendingUninstall_ = selected_;
-            ImGui::OpenPopup("Confirm Uninstall");
+            requestUninstallConfirm_ = true;
         }
     }
 
@@ -2370,6 +2375,10 @@ void App::renderDetails() {
     ImGui::SameLine(0.0f, 8.0f * s);
     if (ui::dangerButton("Uninstall", ImVec2(halfW, 30.0f * s))) {
         pendingUninstall_ = selected_;
+        ImGui::OpenPopup("Confirm Uninstall");
+    }
+    if (requestUninstallConfirm_) {
+        requestUninstallConfirm_ = false;
         ImGui::OpenPopup("Confirm Uninstall");
     }
     if (ImGui::BeginPopupModal("Confirm Uninstall", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
