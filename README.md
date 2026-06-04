@@ -28,8 +28,8 @@ library never disturbs the base game.
 - **Profiles** - named, isolated sets of mods and order. Switching a profile reconciles
   the game folder: the old profile's files come out, the new profile's enabled mods go
   in.
-- **PAK conflict detection** - warns when two PAK mods ship the same pak name, since only
-  one of them will load.
+- **Conflict detection** - warns when enabled PAK mods ship the same pak name or enabled
+  UE4SS mods target the same `Mods` folder.
 - **One-click UE4SS install** - downloads the latest UE4SS release straight from GitHub
   and installs it into `Binaries/Win64`. Built-in UE4SS mods can be toggled, and
   `mods.txt` is rewritten for you. The download is checked against GitHub's published

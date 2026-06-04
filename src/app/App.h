@@ -105,8 +105,7 @@ private:
     [[nodiscard]] bool sn2ModSettingsMissing() const;
     /// <summary>Scans installed UE4SS mods' text files for a SN2ModSettings reference (require/use).</summary>
     [[nodiscard]] bool anyModNeedsSn2ModSettings() const;
-    /// <summary>One message per group of enabled PAK mods that share a stem (load-order collisions).</summary>
-    [[nodiscard]] std::vector<std::string> pakConflicts() const;
+    [[nodiscard]] std::vector<std::string> modConflictWarnings() const;
 
     void installUe4ss();          // starts the background download/install worker (no-op if already running)
     void pollUe4ssInstall();      // per-frame: applies the result once the worker finishes

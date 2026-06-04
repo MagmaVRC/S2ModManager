@@ -119,6 +119,7 @@
     <ClCompile Include="src\core\Vfs.cpp" />
     <ClCompile Include="src\core\Palette.cpp" />
     <ClCompile Include="src\core\ModName.cpp" />
+    <ClCompile Include="src\core\ModConflicts.cpp" />
     <ClCompile Include="src\core\Steam.cpp" />
     <ClCompile Include="src\core\Game.cpp" />
     <ClCompile Include="src\core\Ue4ssMods.cpp" />
@@ -150,6 +151,7 @@
     <ClInclude Include="src\ui\Colors.h" />
     <ClInclude Include="src\core\Palette.h" />
     <ClInclude Include="src\core\ModName.h" />
+    <ClInclude Include="src\core\ModConflicts.h" />
     <ClInclude Include="src\core\Paths.h" />
     <ClInclude Include="src\core\Config.h" />
     <ClInclude Include="src\core\Compression.h" />

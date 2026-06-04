@@ -4,6 +4,7 @@
 #include "../core/Ue4ssInstall.h"
 #include "../core/ReshadeInstall.h"
 #include "../core/Archive.h"
+#include "../core/ModConflicts.h"
 #include "../core/Paths.h"
 #include "../core/ModName.h"
 #include "../core/Steam.h"
@@ -25,7 +26,6 @@
 #include <filesystem>
 #include <format>
 #include <initializer_list>
-#include <map>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -697,37 +697,24 @@ bool App::anyModNeedsSn2ModSettings() const {
     return false;
 }
 
-std::vector<std::string> App::pakConflicts() const {
+std::vector<std::string> App::modConflictWarnings() const {
     std::vector<std::string> out;
     if (!store_)
         return out;
 
-    auto lower = [](std::string s) {
-        std::transform(s.begin(), s.end(), s.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return s;
-    };
-    std::map<std::string, std::vector<std::string>> groups;   // key -> mod display names
-    std::map<std::string, std::string> stems;                 // key -> original-cased stem
-    for (const auto& m : store_->mods()) {
-        if (m.kind != core::ModKind::Pak || !m.enabled || m.stem.empty())
-            continue;
-        std::string key = m.subdir + "/" + lower(m.stem);
-        groups[key].push_back(m.name);
-        stems.emplace(key, m.stem);
-    }
-
-    for (const auto& [key, names] : groups) {
-        if (names.size() < 2)
-            continue;
-        const std::string& stem = stems[key];
+    for (const auto& conflict : core::detectModConflicts(store_->mods())) {
         std::string joined;
-        for (std::size_t i = 0; i < names.size(); ++i) {
+        for (std::size_t i = 0; i < conflict.names.size(); ++i) {
             if (i)
-                joined += (i + 1 == names.size()) ? " and " : ", ";
-            joined += '"' + names[i] + '"';
+                joined += (i + 1 == conflict.names.size()) ? " and " : ", ";
+            joined += '"' + conflict.names[i] + '"';
         }
-        out.push_back(std::format("PAK conflict: {} share a \"{}\" pak — only one will load.", joined, stem));
+        if (conflict.kind == core::ModConflictKind::Pak)
+            out.push_back(std::format("PAK conflict: {} share a \"{}\" pak — only one will load.",
+                                      joined, conflict.target));
+        else
+            out.push_back(std::format("UE4SS conflict: {} share the \"{}\" Mods folder — only one can materialize cleanly.",
+                                      joined, conflict.target));
     }
     return out;
 }
@@ -1311,7 +1298,7 @@ void App::renderBanners() {
     if (sn2ModSettingsMissing())
         banners.push_back({ "An installed mod needs SN2ModSettings for its in-game options menu, "
                             "but it isn't installed. Add it like any other UE4SS mod.", colWarn });
-    for (auto& c : pakConflicts())
+    for (auto& c : modConflictWarnings())
         banners.push_back({ std::move(c), colWarn });
     if (banners.empty())
         return;
