@@ -1,6 +1,7 @@
 #include "Config.h"
 #include "Paths.h"
 #include <nlohmann/json.hpp>
+#include <algorithm>
 #include <fstream>
 #include <iterator>
 
@@ -93,6 +94,18 @@ void from_json(const nlohmann::json& j, Config& c) {
     }
 }
 
+static void validate(Config& c) {
+    auto clamp01 = [](float& v) { if (v < 0.0f) v = 0.0f; if (v > 1.0f) v = 1.0f; };
+    c.uiScale = std::clamp(c.uiScale, 0.5f, 2.0f);
+    if (c.themeMode != "dark" && c.themeMode != "light" && c.themeMode != "subnautica")
+        c.themeMode = "subnautica";
+    clamp01(c.background.blur);
+    clamp01(c.background.dim);
+    clamp01(c.background.panelOpacity);
+    clamp01(c.background.driftAmount);
+    c.background.driftSpeed = std::clamp(c.background.driftSpeed, 0.0f, 2.0f);
+}
+
 Config Config::load() {
     Config c;
     std::ifstream in(dataFile().parent_path() / L"settings.json", std::ios::binary);
@@ -104,6 +117,7 @@ Config Config::load() {
     } catch (const nlohmann::json::exception&) {
         return Config{};
     }
+    validate(c);
     return c;
 }
 
