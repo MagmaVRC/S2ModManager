@@ -666,25 +666,33 @@ bool App::sn2ModSettingsMissing() const {
 bool App::anyModNeedsSn2ModSettings() const {
     if (!store_)
         return false;
-    constexpr std::string_view kNeedle = "./ue4ss/mods/sn2modsettings/";   // compared lowercased
-    auto lower = [](const std::string& rel) {
-        std::string s = rel;
-        std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return s;
+    constexpr std::string_view kNeedle = "./ue4ss/mods/sn2modsettings/";
+    auto endsWithLua = [](const std::string& s) {
+        return s.size() >= 4 &&
+               std::tolower(static_cast<unsigned char>(s[s.size()-4])) == '.' &&
+               std::tolower(static_cast<unsigned char>(s[s.size()-3])) == 'l' &&
+               std::tolower(static_cast<unsigned char>(s[s.size()-2])) == 'u' &&
+               std::tolower(static_cast<unsigned char>(s[s.size()-1])) == 'a';
     };
     for (const auto& m : store_->mods()) {
         if (m.kind != core::ModKind::Ue4ss)
+            continue;
+        bool hasLua = false;
+        for (const auto& f : m.files)
+            if (endsWithLua(f)) { hasLua = true; break; }
+        if (!hasLua)
             continue;
         std::vector<std::pair<std::string, core::Bytes>> files;
         if (!store_->readModFiles(m.id, files))
             continue;
         for (const auto& [rel, bytes] : files) {
-            if (bytes.empty() || !lower(rel).ends_with(".lua"))
+            if (bytes.empty() || !endsWithLua(rel))
                 continue;
-            std::string low(bytes.size(), '\0');
-            std::transform(bytes.begin(), bytes.end(), low.begin(),
-                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            if (low.find(kNeedle) != std::string::npos)
+            auto it = std::search(bytes.begin(), bytes.end(), kNeedle.begin(), kNeedle.end(),
+                [](unsigned char a, unsigned char b) {
+                    return std::tolower(a) == std::tolower(b);
+                });
+            if (it != bytes.end())
                 return true;
         }
     }
