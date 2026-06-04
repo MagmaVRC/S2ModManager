@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <iosfwd>
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -63,7 +63,7 @@ private:
     bool readCompressed(const Entry& e, Bytes& comp, std::ifstream* shared) const;
 
     std::filesystem::path file_;
-    std::map<std::string, Entry> entries_;
+    std::unordered_map<std::string, Entry> entries_;
     bool dirty_ = false;
 };
 

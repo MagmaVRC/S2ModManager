@@ -218,7 +218,7 @@ bool Vfs::commit() {
         ~TmpGuard() { if (!committed) { std::error_code e; std::filesystem::remove(p, e); } }
     } guard{tmp};
 
-    std::map<std::string, std::uint64_t> newOffsets;
+    std::unordered_map<std::string, std::uint64_t> newOffsets;
 
     {
         std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
