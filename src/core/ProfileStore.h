@@ -157,6 +157,7 @@ public:
     void reapplyReshadePresets();
 
 private:
+    void shiftPaksDown(std::size_t afterIdx, int startNum);
     [[nodiscard]] std::string manifestKey(const std::string& pid) const;
     [[nodiscard]] std::string blobKey(const std::string& pid, const ProfileMod& m, const std::string& rel) const;
     [[nodiscard]] std::filesystem::path materializedDir(const ProfileMod& m) const;

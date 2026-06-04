@@ -106,6 +106,21 @@ void ProfileStore::flush() {
     commitAsync();   // write pending changes (e.g. batched enable/disable) on the worker; no-op if clean
 }
 
+void ProfileStore::shiftPaksDown(std::size_t afterIdx, int startNum) {
+    std::error_code ec;
+    int n = startNum;
+    for (std::size_t i = afterIdx + 1; i < active_.size(); ++i) {
+        const ProfileMod& m = active_[i];
+        if (!(m.kind == ModKind::Pak && m.enabled))
+            continue;
+        const auto dir = m.subdir == kContentMods ? paths_.pakMods : paths_.logicMods;
+        for (const auto& ext : m.exts)
+            std::filesystem::rename(dir / pathFromUtf8(std::format("{:03}_{}{}", n + 1, m.stem, ext)),
+                                    dir / pathFromUtf8(std::format("{:03}_{}{}", n,     m.stem, ext)), ec);
+        ++n;
+    }
+}
+
 std::string ProfileStore::manifestKey(const std::string& pid) const {
     return "profiles/" + pid + "/manifest.json";
 }
@@ -680,18 +695,7 @@ bool ProfileStore::setEnabled(int modId, bool enabled) {
         } else {
             for (const auto& ext : it->exts)
                 std::filesystem::remove(dir / pathFromUtf8(std::format("{:03}_{}{}", num, it->stem, ext)), ec);
-            // Shift following enabled PAKs DOWN by one (ascending = collision-free).
-            int n = num;
-            for (std::size_t i = idx + 1; i < active_.size(); ++i) {
-                const ProfileMod& fm = active_[i];
-                if (!(fm.kind == ModKind::Pak && fm.enabled))
-                    continue;
-                const std::filesystem::path fdir = fm.subdir == kContentMods ? paths_.pakMods : paths_.logicMods;
-                for (const auto& ext : fm.exts)
-                    std::filesystem::rename(fdir / pathFromUtf8(std::format("{:03}_{}{}", n + 1, fm.stem, ext)),
-                                            fdir / pathFromUtf8(std::format("{:03}_{}{}", n,     fm.stem, ext)), ec);
-                ++n;
-            }
+            shiftPaksDown(idx, num);
             it->enabled = false;
         }
     } else {
@@ -810,19 +814,7 @@ bool ProfileStore::uninstall(int modId) {
         const std::filesystem::path vdir = victim.subdir == kContentMods ? paths_.pakMods : paths_.logicMods;
         for (const auto& ext : victim.exts)
             std::filesystem::remove(vdir / pathFromUtf8(std::format("{:03}_{}{}", victimNum, victim.stem, ext)), ec);
-        // Shift every following enabled PAK down by one number — a rename, no re-decompress.
-        // Ascending order is collision-free: each target slot was just vacated.
-        int num = victimNum;
-        for (std::size_t i = victimIndex + 1; i < active_.size(); ++i) {
-            const ProfileMod& m = active_[i];
-            if (!(m.enabled && m.kind == ModKind::Pak))
-                continue;
-            const std::filesystem::path dir = m.subdir == kContentMods ? paths_.pakMods : paths_.logicMods;
-            for (const auto& ext : m.exts)
-                std::filesystem::rename(dir / pathFromUtf8(std::format("{:03}_{}{}", num + 1, m.stem, ext)),
-                                        dir / pathFromUtf8(std::format("{:03}_{}{}", num,     m.stem, ext)), ec);
-            ++num;
-        }
+        shiftPaksDown(victimIndex, victimNum);
     } else if (victim.enabled && victim.kind == ModKind::Ue4ss) {
         std::filesystem::remove_all(paths_.ue4ssMods / pathFromUtf8(victim.name), ec);
     }
