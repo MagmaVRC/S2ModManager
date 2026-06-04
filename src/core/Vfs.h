@@ -2,6 +2,7 @@
 #include "Compression.h"
 #include <cstdint>
 #include <filesystem>
+#include <iosfwd>
 #include <map>
 #include <string>
 #include <vector>
@@ -59,6 +60,7 @@ private:
     };
 
     bool readCompressed(const Entry& e, Bytes& comp) const;
+    bool readCompressed(const Entry& e, Bytes& comp, std::ifstream* shared) const;
 
     std::filesystem::path file_;
     std::map<std::string, Entry> entries_;

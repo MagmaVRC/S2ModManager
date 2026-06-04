@@ -85,13 +85,20 @@ bool Vfs::has(const std::string& path) const {
 }
 
 bool Vfs::readCompressed(const Entry& e, Bytes& comp) const {
+    return readCompressed(e, comp, nullptr);
+}
+
+bool Vfs::readCompressed(const Entry& e, Bytes& comp, std::ifstream* shared) const {
     if (!e.onDisk) {
         comp = e.blob;
         return true;
     }
-    std::ifstream in(file_, std::ios::binary);
-    if (!in)
-        return false;
+    std::ifstream local;
+    std::ifstream& in = shared ? *shared : local;
+    if (!shared) {
+        in.open(file_, std::ios::binary);
+        if (!in) return false;
+    }
     in.seekg(static_cast<std::streamoff>(e.offset));
     comp.resize(static_cast<std::size_t>(e.compSize));
     return static_cast<bool>(in.read(reinterpret_cast<char*>(comp.data()),
@@ -225,9 +232,10 @@ bool Vfs::commit() {
         std::uint32_t count = static_cast<std::uint32_t>(entries_.size());
         put(out, count);
 
+        std::ifstream source(file_, std::ios::binary);
         for (auto& [path, e] : entries_) {
             Bytes comp;
-            if (!readCompressed(e, comp))
+            if (!readCompressed(e, comp, e.onDisk ? &source : nullptr))
                 return false;
             newOffsets[path] = static_cast<std::uint64_t>(out.tellp());
             if (!comp.empty())
