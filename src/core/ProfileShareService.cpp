@@ -3,6 +3,7 @@
 #include "Compression.h"
 #include "ConnectionKey.h"
 #include "Http.h"
+#include "Paths.h"
 #include "PeerSession.h"
 #include "ProfileBundle.h"
 #include "net/Upnp.h"
