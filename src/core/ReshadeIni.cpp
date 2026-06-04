@@ -16,7 +16,7 @@ namespace {
 
 std::mutex g_iniMutex;
 
-bool iStartsWith(const std::string& s, const std::string& prefix) {
+bool iStartsWith(std::string_view s, std::string_view prefix) {
     if (s.size() < prefix.size())
         return false;
     for (std::size_t i = 0; i < prefix.size(); ++i)
@@ -105,7 +105,7 @@ void upsertGeneralKey(std::vector<std::string>& lines, const std::string& key, c
     lines.insert(lines.begin() + hdr + 1, entry);
 }
 
-std::vector<std::string> splitCsv(const std::string& v) {
+std::vector<std::string> splitCsv(std::string_view v) {
     std::vector<std::string> out;
     std::string cur;
     for (char c : v) {
@@ -117,12 +117,12 @@ std::vector<std::string> splitCsv(const std::string& v) {
     return out;
 }
 
-bool iEquals(const std::string& a, const std::string& b) {
+bool iEquals(std::string_view a, std::string_view b) {
     return a.size() == b.size() && iStartsWith(a, b);
 }
 
 // Drops 'remove' (case-insensitive) and ensures 'add' is present; returns the joined CSV.
-std::string mergePaths(const std::string& current, const std::string& remove,
+std::string mergePaths(std::string_view current, std::string_view remove,
                        std::initializer_list<const char*> add) {
     std::vector<std::string> entries = splitCsv(current);
     entries.erase(std::remove_if(entries.begin(), entries.end(),

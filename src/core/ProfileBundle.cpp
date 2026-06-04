@@ -81,8 +81,8 @@ std::string manifestToJson(const BundleManifest& m) {
     return j.dump();
 }
 
-std::optional<BundleManifest> manifestFromJson(const std::string& json) {
-    nlohmann::json j = nlohmann::json::parse(json, nullptr, false);
+std::optional<BundleManifest> manifestFromJson(std::string_view json) {
+    nlohmann::json j = nlohmann::json::parse(json.begin(), json.end(), nullptr, false);
     if (!j.is_object() || !j.contains("mods") || !j["mods"].is_array())
         return std::nullopt;
 

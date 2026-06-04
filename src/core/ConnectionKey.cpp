@@ -52,7 +52,7 @@ int b64Value(char c) {
     return -1;
 }
 
-bool base64Decode(const std::string& in, Bytes& out) {
+bool base64Decode(std::string_view in, Bytes& out) {
     int buf = 0, bits = 0;
     for (char c : in) {
         if (c == '=' || c == '\n' || c == '\r' || c == ' ' || c == '\t')
@@ -70,7 +70,7 @@ bool base64Decode(const std::string& in, Bytes& out) {
     return true;
 }
 
-bool parseIpv4(const std::string& ip, std::array<std::uint8_t, 4>& out) {
+bool parseIpv4(std::string_view ip, std::array<std::uint8_t, 4>& out) {
     int part = 0, value = 0, digits = 0;
     auto commit = [&]() -> bool {
         if (digits == 0 || value > 255 || part > 3) return false;
@@ -181,7 +181,7 @@ std::string encodeConnectionKey(const ConnectionKeyData& data) {
     return base64Encode(blob);
 }
 
-std::optional<ConnectionKeyData> parseConnectionKey(const std::string& text) {
+std::optional<ConnectionKeyData> parseConnectionKey(std::string_view text) {
     Bytes blob;
     if (!base64Decode(text, blob) || blob.size() != kBlobSize)
         return std::nullopt;

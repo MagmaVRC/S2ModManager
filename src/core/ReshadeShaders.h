@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace core {
@@ -64,10 +65,10 @@ public:
                                           const std::function<void(ShaderPhase, float)>& onProgress);
 
     /// <summary>Enables or disables a pack by moving its subfolders into or out of the search tree.</summary>
-    bool setEnabled(const std::string& name, bool enabled);
+    bool setEnabled(std::string_view name, bool enabled);
 
     /// <summary>Removes a pack: deletes its Shaders/ and Textures/ subfolders and manifest entry.</summary>
-    bool uninstall(const std::string& name);
+    bool uninstall(std::string_view name);
 
 private:
     [[nodiscard]] std::filesystem::path shadersDir() const;

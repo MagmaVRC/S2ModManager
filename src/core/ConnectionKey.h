@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace core {
@@ -40,6 +41,6 @@ struct ConnectionKeyData {
 
 /// <summary>Parses and validates a connection key string. Rejects bad magic,
 /// version, length, or CRC. Whitespace is ignored.</summary>
-[[nodiscard]] std::optional<ConnectionKeyData> parseConnectionKey(const std::string& text);
+[[nodiscard]] std::optional<ConnectionKeyData> parseConnectionKey(std::string_view text);
 
 }  // namespace core

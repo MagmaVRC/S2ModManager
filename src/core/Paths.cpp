@@ -7,7 +7,7 @@
 
 namespace core {
 
-std::wstring widen(const std::string& utf8) {
+std::wstring widen(std::string_view utf8) {
     if (utf8.empty()) return {};
     int n = MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), nullptr, 0);
     std::wstring out(n, L'\0');
@@ -23,7 +23,7 @@ std::string narrow(const std::wstring& utf16) {
     return out;
 }
 
-std::filesystem::path pathFromUtf8(const std::string& utf8) {
+std::filesystem::path pathFromUtf8(std::string_view utf8) {
     return std::filesystem::path(widen(utf8));
 }
 
@@ -75,20 +75,20 @@ std::filesystem::path dataFile() {
     return localAppDir() / L"Data.dat";
 }
 
-bool isSafeName(const std::string& name) {
+bool isSafeName(std::string_view name) {
     if (name.empty()) return false;
-    if (name.find('/') != std::string::npos) return false;
-    if (name.find('\\') != std::string::npos) return false;
-    if (name.find("..") != std::string::npos) return false;
-    if (name.find(':') != std::string::npos) return false;
+    if (name.find('/') != std::string_view::npos) return false;
+    if (name.find('\\') != std::string_view::npos) return false;
+    if (name.find("..") != std::string_view::npos) return false;
+    if (name.find(':') != std::string_view::npos) return false;
     return true;
 }
 
-std::string trim(const std::string& s) {
+std::string trim(std::string_view s) {
     std::size_t a = 0, b = s.size();
     while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
     while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
-    return s.substr(a, b - a);
+    return std::string(s.substr(a, b - a));
 }
 
 std::string lowerExt(const std::filesystem::path& p) {
@@ -98,7 +98,7 @@ std::string lowerExt(const std::filesystem::path& p) {
     return e;
 }
 
-bool isPakSibling(const std::string& ext) {
+bool isPakSibling(std::string_view ext) {
     return ext == ".pak" || ext == ".ucas" || ext == ".utoc" || ext == ".sig";
 }
 

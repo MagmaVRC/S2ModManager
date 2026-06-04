@@ -32,11 +32,11 @@ std::string sha256HexOfFile(const std::filesystem::path& p) {
     return out;
 }
 
-bool digestMatches(const std::string& digest, const std::filesystem::path& file) {
+bool digestMatches(std::string_view digest, const std::filesystem::path& file) {
     constexpr std::string_view prefix = "sha256:";
     if (!digest.starts_with(prefix))
         return true;
-    std::string want = digest.substr(prefix.size());
+    std::string want(digest.substr(prefix.size()));
     std::transform(want.begin(), want.end(), want.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     const std::string got = sha256HexOfFile(file);

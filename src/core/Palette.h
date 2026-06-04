@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace core {
 
@@ -25,6 +26,6 @@ Palette defaultLight();
 std::string colorToHex(std::uint32_t c);
 
 /// <summary>Parses "#RRGGBBAA" (or "#RRGGBB"); returns fallback on malformed input.</summary>
-std::uint32_t hexToColor(const std::string& s, std::uint32_t fallback);
+std::uint32_t hexToColor(std::string_view s, std::uint32_t fallback);
 
 }

@@ -7,6 +7,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace core {
@@ -40,7 +41,7 @@ struct BundleManifest {
 [[nodiscard]] std::string manifestToJson(const BundleManifest& m);
 
 /// <summary>Parses a manifest from JSON. Returns nullopt on malformed input.</summary>
-[[nodiscard]] std::optional<BundleManifest> manifestFromJson(const std::string& json);
+[[nodiscard]] std::optional<BundleManifest> manifestFromJson(std::string_view json);
 
 /// <summary>Builds a manifest describing the store's active profile (PAK + UE4SS).</summary>
 [[nodiscard]] bool gatherManifest(const ProfileStore& store, const std::string& profileName,

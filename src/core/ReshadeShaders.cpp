@@ -259,7 +259,7 @@ ShaderResult ReshadeShaders::importPack(const std::filesystem::path& source, con
     return r;
 }
 
-bool ReshadeShaders::setEnabled(const std::string& name, bool enabled) {
+bool ReshadeShaders::setEnabled(std::string_view name, bool enabled) {
     auto it = std::find_if(packs_.begin(), packs_.end(), [&](const ShaderPack& p) { return p.name == name; });
     if (it == packs_.end() || it->enabled == enabled)
         return false;
@@ -289,7 +289,7 @@ bool ReshadeShaders::setEnabled(const std::string& name, bool enabled) {
     return true;
 }
 
-bool ReshadeShaders::uninstall(const std::string& name) {
+bool ReshadeShaders::uninstall(std::string_view name) {
     auto it = std::find_if(packs_.begin(), packs_.end(), [&](const ShaderPack& p) { return p.name == name; });
     if (it == packs_.end())
         return false;

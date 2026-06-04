@@ -45,7 +45,7 @@ std::string colorToHex(std::uint32_t c) {
     return buf;
 }
 
-std::uint32_t hexToColor(const std::string& s, std::uint32_t fallback) {
+std::uint32_t hexToColor(std::string_view s, std::uint32_t fallback) {
     if (s.size() < 7 || s[0] != '#') return fallback;
     auto hx = [&](int i) -> int {
         char c = s[i];

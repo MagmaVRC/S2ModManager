@@ -19,7 +19,7 @@ GamePaths derive(const std::filesystem::path& root) {
 }
 }
 
-Game Game::resolve(const std::string& overrideRoot) {
+Game Game::resolve(std::string_view overrideRoot) {
     Game g;
     std::filesystem::path root;
     if (!overrideRoot.empty())

@@ -168,12 +168,12 @@ std::optional<std::string> pickFile(const char* title,
     return result;
 }
 
-void openInExplorer(const std::string& path) {
+void openInExplorer(std::string_view path) {
     std::wstring wp = core::widen(path);
     ShellExecuteW(nullptr, L"open", wp.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
-void openUrl(const std::string& url) {
+void openUrl(std::string_view url) {
     if (!url.starts_with("http://") && !url.starts_with("https://"))
         return;
     std::wstring wu = core::widen(url);

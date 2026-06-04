@@ -1,6 +1,7 @@
 #pragma once
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace platform {
@@ -36,10 +37,10 @@ namespace platform {
 
 /// <summary>Opens a folder in the system file browser (selecting it if it's a file).</summary>
 /// <param name="path">UTF-8 path to a folder or file.</param>
-void openInExplorer(const std::string& path);
+void openInExplorer(std::string_view path);
 
 /// <summary>Opens a URL with the user's default browser.</summary>
 /// <param name="url">Absolute http(s) URL.</param>
-void openUrl(const std::string& url);
+void openUrl(std::string_view url);
 
 }

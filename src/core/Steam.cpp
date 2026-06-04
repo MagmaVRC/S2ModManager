@@ -21,15 +21,15 @@ std::optional<std::wstring> steamInstallPath() {
     return std::nullopt;
 }
 
-std::string nextQuoted(const std::string& s, std::size_t from) {
+std::string nextQuoted(std::string_view s, std::size_t from) {
     std::size_t a = s.find('"', from);
-    if (a == std::string::npos) return {};
+    if (a == std::string_view::npos) return {};
     std::size_t b = s.find('"', a + 1);
-    if (b == std::string::npos) return {};
-    return s.substr(a + 1, b - a - 1);
+    if (b == std::string_view::npos) return {};
+    return std::string(s.substr(a + 1, b - a - 1));
 }
 
-std::string unescape(const std::string& v) {
+std::string unescape(std::string_view v) {
     std::string out;
     for (std::size_t i = 0; i < v.size(); ++i) {
         if (v[i] == '\\' && i + 1 < v.size()) {

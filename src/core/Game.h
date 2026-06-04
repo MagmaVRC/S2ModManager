@@ -1,6 +1,7 @@
 #pragma once
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace core {
 
@@ -19,7 +20,7 @@ struct GamePaths {
 class Game {
 public:
     /// <summary>Resolves from an explicit root folder, or auto-detects via Steam when empty.</summary>
-    [[nodiscard]] static Game resolve(const std::string& overrideRoot);
+    [[nodiscard]] static Game resolve(std::string_view overrideRoot);
 
     /// <summary>Whether a valid Subnautica 2 install was resolved.</summary>
     [[nodiscard]] bool valid() const { return valid_; }

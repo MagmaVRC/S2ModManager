@@ -7,14 +7,14 @@ namespace core {
 
 namespace {
 
-bool isAllDigits(const std::string& s) {
+bool isAllDigits(std::string_view s) {
     if (s.empty()) return false;
     for (char c : s)
         if (!std::isdigit(static_cast<unsigned char>(c))) return false;
     return true;
 }
 
-std::string collapseSpaces(const std::string& s) {
+std::string collapseSpaces(std::string_view s) {
     std::string out;
     out.reserve(s.size());
     bool prevSpace = false;
