@@ -22,9 +22,6 @@
 
 namespace app {
 
-/// <summary>Category a mod belongs to.</summary>
-enum class ModType { Pak, Ue4ss };
-
 /// <summary>A single mod shown in the list.</summary>
 struct ModEntry {
     std::string name;            // raw on-disk stem; the store/undo identity
@@ -32,7 +29,7 @@ struct ModEntry {
     std::string displayName;     // cleaned name parsed from the stem; falls back to name
     std::string version;         // parsed version (e.g. "1.1.2"); empty when unknown
     std::optional<int> nexusId;  // parsed Nexus mod id when the stem is a Nexus download name
-    ModType type = ModType::Pak;
+    core::ModKind type = core::ModKind::Pak;
     bool enabled = true;
     int modId = 0;   // links the row to its core::ProfileMod in the active profile
 };

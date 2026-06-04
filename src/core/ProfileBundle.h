@@ -11,9 +11,6 @@
 
 namespace core {
 
-/// <summary>Which kind of mod a bundle entry describes.</summary>
-enum class BundleModKind { Pak, Ue4ss };
-
 /// <summary>One file within a bundled mod.</summary>
 struct BundleFileMeta {
     std::string   relPath;     // pak: "<stem><ext>"; ue4ss: path relative to the mod folder
@@ -22,7 +19,7 @@ struct BundleFileMeta {
 
 /// <summary>A single mod inside a shared profile, without file bytes.</summary>
 struct BundleMod {
-    BundleModKind               kind = BundleModKind::Pak;
+    ModKind                     kind = ModKind::Pak;
     std::string                 name;
     bool                        enabled = true;
     std::string                 stem;    // pak only

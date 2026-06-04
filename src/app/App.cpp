@@ -38,18 +38,17 @@ namespace {
 constexpr float kTopBarH  = 40.0f;
 constexpr float kDetailsW = 300.0f;
 
-ImU32 typeColor(ModType t) { return t == ModType::Pak ? colAccent : IM_COL32(178, 138, 255, 255); }
-const char* typeLabel(ModType t) { return t == ModType::Pak ? "PAK" : "UE4SS"; }
+ImU32 typeColor(core::ModKind t) { return t == core::ModKind::Pak ? colAccent : IM_COL32(178, 138, 255, 255); }
+const char* typeLabel(core::ModKind t) { return t == core::ModKind::Pak ? "PAK" : "UE4SS"; }
 
 ModEntry makeEntry(const core::ProfileMod& m) {
-    const ModType t = m.kind == core::ModKind::Ue4ss ? ModType::Ue4ss : ModType::Pak;
     core::ParsedModName p = core::parseModName(m.name);
     ModEntry e;
     e.name = m.name;
     e.displayName = p.name.empty() ? m.name : p.name;
     e.version = p.version;
     e.nexusId = p.nexusId;
-    e.type = t;
+    e.type = m.kind;
     e.enabled = m.enabled;
     e.modId = m.id;
     return e;
@@ -1733,9 +1732,9 @@ void App::renderModList() {
     if (config_.themeMode == "subnautica")
         glassPanel(dl, c0, ImVec2(c0.x + w, c0.y + ImGui::GetWindowHeight()), s);
 
-    auto typeMatches = [&](ModType t) {
-        return typeFilter_ == 0 || (typeFilter_ == 1 && t == ModType::Pak)
-                                || (typeFilter_ == 2 && t == ModType::Ue4ss);
+    auto typeMatches = [&](core::ModKind t) {
+        return typeFilter_ == 0 || (typeFilter_ == 1 && t == core::ModKind::Pak)
+                                || (typeFilter_ == 2 && t == core::ModKind::Ue4ss);
     };
     auto rowShown = [&](int i) {
         return (matchesSearch(mods_[i].name, searchBuf_.data())
@@ -1809,7 +1808,7 @@ void App::renderModList() {
         for (const auto& pm : store_->mods())
             subdirOf[pm.id] = pm.subdir;
     for (const auto& md : mods_)
-        if (md.type == ModType::Pak && md.enabled) pakRank[md.modId] = ++pakSeq;
+        if (md.type == core::ModKind::Pak && md.enabled) pakRank[md.modId] = ++pakSeq;
 
     if (!game_.ue4ssInstalled()) {
         const Ue4ssStage stage = ue4ssStage_.load();
@@ -2046,7 +2045,7 @@ void App::renderModList() {
         const char* tlabel = typeLabel(e.type);
         ui::pill(ImVec2(p.x + c.type, ty - 2.0f * s), tlabel, tcol);
 
-        if (e.type == ModType::Pak && e.enabled) {
+        if (e.type == core::ModKind::Pak && e.enabled) {
             auto it = pakRank.find(e.modId);
             std::string ld = std::format("#{:03}", it != pakRank.end() ? it->second : 0);
             textSnapped(rdl, ImVec2(p.x + c.load, ty), secCol, ld.c_str());
@@ -2054,7 +2053,7 @@ void App::renderModList() {
             textSnapped(rdl, ImVec2(p.x + c.load, ty), dimCol, "—");
         }
 
-        const char* folder = e.type == ModType::Ue4ss ? "Mods"
+        const char* folder = e.type == core::ModKind::Ue4ss ? "Mods"
                            : (subdirOf.count(e.modId) ? subdirOf[e.modId].c_str() : core::kLogicMods);
         textSnapped(rdl, ImVec2(p.x + c.folder, ty), dimCol, folder);
         if (reveal < 0.999f) rdl->PopClipRect();
@@ -2170,7 +2169,7 @@ void App::renderDetails() {
 
     int rank = 0, pakTotal = 0;
     for (int i = 0; i < static_cast<int>(mods_.size()); ++i)
-        if (mods_[i].type == ModType::Pak && mods_[i].enabled) { ++pakTotal; if (i == selected_) rank = pakTotal; }
+        if (mods_[i].type == core::ModKind::Pak && mods_[i].enabled) { ++pakTotal; if (i == selected_) rank = pakTotal; }
 
     auto section = [&](const char* label) {
         ImGui::Dummy(ImVec2(0.0f, 12.0f * s));
@@ -2216,7 +2215,7 @@ void App::renderDetails() {
     ImGui::PopFont();
 
     std::string sub = m.enabled ? "Enabled" : "Disabled";
-    if (m.type == ModType::Pak && m.enabled) sub += std::format(", load #{:03}", rank);
+    if (m.type == core::ModKind::Pak && m.enabled) sub += std::format(", load #{:03}", rank);
     ImGui::SetCursorPosX(pad);
     ImGui::TextColored(toVec(colTextDim), "%s", sub.c_str());
     ImGui::Dummy(ImVec2(0.0f, 6.0f * s));
@@ -2228,7 +2227,7 @@ void App::renderDetails() {
     kv("Version", m.version.empty() ? "—" : m.version);
     if (m.nexusId) kv("Nexus mod ID", std::to_string(*m.nexusId));
 
-    if (m.type == ModType::Pak) {
+    if (m.type == core::ModKind::Pak) {
         std::string subdir = pm ? pm->subdir : std::string(core::kLogicMods);
         float y = ImGui::GetCursorPosY();
         ImGui::SetCursorPos(ImVec2(pad, y + 3.0f * s));
@@ -2248,7 +2247,7 @@ void App::renderDetails() {
         float y = ImGui::GetCursorPosY();
         ImGui::SetCursorPos(ImVec2(pad, y + 2.0f * s));
         ImGui::TextColored(toVec(colText), "%s",
-            (m.type == ModType::Pak && m.enabled) ? std::format("#{:03} of {:03}", rank, pakTotal).c_str() : "—");
+            (m.type == core::ModKind::Pak && m.enabled) ? std::format("#{:03} of {:03}", rank, pakTotal).c_str() : "—");
         const ImVec2 btn(30.0f * s, 22.0f * s);
         ImTextureID upIco = ui::icons().tex(ui::Icon::ChevronUp);
         ImTextureID dnIco = ui::icons().tex(ui::Icon::ChevronDown);

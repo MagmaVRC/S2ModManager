@@ -9,7 +9,8 @@
 namespace core {
 namespace {
 
-const char* kindStr(BundleModKind k) { return k == BundleModKind::Pak ? "pak" : "ue4ss"; }
+const char* kindStr(ModKind k) { return k == ModKind::Pak ? "pak" : "ue4ss"; }
+
 
 // On-disk .s2profile container: magic + version, then the same manifest + per-file lzma
 // payload the P2P transfer streams, minus the network handshake.
@@ -89,7 +90,7 @@ std::optional<BundleManifest> manifestFromJson(const std::string& json) {
     m.profileName = j.value("profileName", std::string("Shared profile"));
     for (const auto& jm : j["mods"]) {
         BundleMod mod;
-        mod.kind    = jm.value("kind", std::string("pak")) == "ue4ss" ? BundleModKind::Ue4ss : BundleModKind::Pak;
+        mod.kind    = jm.value("kind", std::string("pak")) == "ue4ss" ? ModKind::Ue4ss : ModKind::Pak;
         mod.name    = jm.value("name", "");
         mod.enabled = jm.value("enabled", true);
         mod.stem    = jm.value("stem", "");
@@ -114,7 +115,7 @@ bool gatherManifest(const ProfileStore& store, const std::string& profileName, B
     out.profileName = profileName;
     for (const auto& m : store.mods()) {
         BundleMod bm;
-        bm.kind    = m.kind == ModKind::Ue4ss ? BundleModKind::Ue4ss : BundleModKind::Pak;
+        bm.kind    = m.kind;
         bm.name    = m.name;
         bm.enabled = m.enabled;
         bm.stem    = m.stem;
@@ -154,11 +155,11 @@ bool writeMod(ProfileStore& store, const std::string& profileId,
               const BundleMod& mod, const std::vector<Bytes>& filesInOrder) {
     if (filesInOrder.size() != mod.files.size() || mod.files.empty() || !isSafeName(mod.name))
         return false;
-    if (mod.kind == BundleModKind::Pak && !stemIsSafe(mod.stem))
+    if (mod.kind == ModKind::Pak && !stemIsSafe(mod.stem))
         return false;
 
     ProfileMod spec;
-    spec.kind    = mod.kind == BundleModKind::Ue4ss ? ModKind::Ue4ss : ModKind::Pak;
+    spec.kind    = mod.kind;
     spec.name    = mod.name;
     spec.enabled = mod.enabled;
     spec.stem    = mod.stem;
