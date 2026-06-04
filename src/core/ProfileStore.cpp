@@ -62,16 +62,6 @@ bool writeFileBytes(const std::filesystem::path& p, const Bytes& data) {
     return out.good();
 }
 
-std::string lowerExt(const std::filesystem::path& p) {
-    std::string e = narrow(p.extension().wstring());
-    std::transform(e.begin(), e.end(), e.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return e;
-}
-
-bool isPakSibling(const std::string& ext) {
-    return ext == ".pak" || ext == ".ucas" || ext == ".utoc" || ext == ".sig";
-}
-
 bool looksLikeUe4ssMod(const std::filesystem::path& d) {
     std::error_code ec;
     return std::filesystem::exists(d / "Scripts", ec) ||

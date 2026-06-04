@@ -55,16 +55,6 @@ ModEntry makeEntry(const core::ProfileMod& m) {
     return e;
 }
 
-std::string lowerExt(const std::filesystem::path& p) {
-    std::string e = core::narrow(p.extension().wstring());
-    std::transform(e.begin(), e.end(), e.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return e;
-}
-
-bool isPakFamily(const std::string& ext) {
-    return ext == ".pak" || ext == ".ucas" || ext == ".utoc" || ext == ".sig";
-}
-
 bool colorRow(const char* label, std::uint32_t* packed) {
     ImVec4 v = ImGui::ColorConvertU32ToFloat4(*packed);
     bool changed = ImGui::ColorEdit4(label, &v.x,
@@ -561,14 +551,14 @@ void App::installMods(const std::vector<std::filesystem::path>& sources) {
             if (std::filesystem::is_directory(src, ec)) {
                 sm.tree = src;
                 sm.name = core::narrow(src.filename().wstring());
-            } else if (isPakFamily(lowerExt(src))) {
+            } else if (core::isPakSibling(core::lowerExt(src))) {
                 sm.scratch = tempRoot / core::pathFromUtf8(sm.name);
                 std::filesystem::create_directories(sm.scratch, ec);
                 const std::string stem = core::narrow(src.stem().wstring());
                 for (auto sib = std::filesystem::directory_iterator(src.parent_path(), ec);
                      !ec && sib != std::filesystem::directory_iterator(); ++sib)
                     if (sib->is_regular_file(ec) && core::narrow(sib->path().stem().wstring()) == stem &&
-                        isPakFamily(lowerExt(sib->path()))) {
+                        core::isPakSibling(core::lowerExt(sib->path()))) {
                         std::filesystem::copy_file(sib->path(), sm.scratch / sib->path().filename(),
                             std::filesystem::copy_options::overwrite_existing, ec);
                         if (ec) sm.copyFailed = true;

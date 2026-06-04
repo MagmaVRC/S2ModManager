@@ -30,4 +30,13 @@ std::filesystem::path dataFile();
 /// <summary>Returns true if the name is safe for use as a filename (no separators or traversal).</summary>
 [[nodiscard]] bool isSafeName(const std::string& name);
 
+/// <summary>Strips leading and trailing whitespace.</summary>
+[[nodiscard]] std::string trim(const std::string& s);
+
+/// <summary>Returns the lowercased file extension (including the dot) of a path.</summary>
+[[nodiscard]] std::string lowerExt(const std::filesystem::path& p);
+
+/// <summary>Returns true for PAK-family extensions (.pak, .ucas, .utoc, .sig).</summary>
+[[nodiscard]] bool isPakSibling(const std::string& ext);
+
 }

@@ -1,4 +1,6 @@
 #include "Paths.h"
+#include <algorithm>
+#include <cctype>
 #include <windows.h>
 #include <shlobj.h>
 #pragma comment(lib, "Shell32.lib")
@@ -80,6 +82,24 @@ bool isSafeName(const std::string& name) {
     if (name.find("..") != std::string::npos) return false;
     if (name.find(':') != std::string::npos) return false;
     return true;
+}
+
+std::string trim(const std::string& s) {
+    std::size_t a = 0, b = s.size();
+    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
+    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
+    return s.substr(a, b - a);
+}
+
+std::string lowerExt(const std::filesystem::path& p) {
+    std::string e = narrow(p.extension().wstring());
+    std::transform(e.begin(), e.end(), e.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return e;
+}
+
+bool isPakSibling(const std::string& ext) {
+    return ext == ".pak" || ext == ".ucas" || ext == ".utoc" || ext == ".sig";
 }
 
 }

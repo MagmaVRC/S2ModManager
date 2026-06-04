@@ -6,15 +6,6 @@
 
 namespace core {
 
-namespace {
-std::string trim(const std::string& s) {
-    std::size_t a = s.find_first_not_of(" \t\r\n");
-    if (a == std::string::npos) return {};
-    std::size_t b = s.find_last_not_of(" \t\r\n");
-    return s.substr(a, b - a + 1);
-}
-}
-
 std::vector<Ue4ssEntry> readUe4ssMods(const std::filesystem::path& modsDir) {
     std::vector<Ue4ssEntry> out;
 

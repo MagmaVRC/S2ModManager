@@ -40,13 +40,6 @@ std::uint64_t getU64(const std::uint8_t* p) {
     return v;
 }
 
-std::string trim(std::string s) {
-    auto notSpace = [](unsigned char c) { return !std::isspace(c); };
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(), notSpace));
-    s.erase(std::find_if(s.rbegin(), s.rend(), notSpace).base(), s.end());
-    return s;
-}
-
 // Loose dotted-IPv4 check — enough to reject an error page or empty body from the IP service.
 bool looksLikeIpv4(const std::string& s) {
     int dots = 0, digits = 0, value = 0;

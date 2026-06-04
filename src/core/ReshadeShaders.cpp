@@ -16,12 +16,6 @@ namespace core {
 
 namespace {
 
-std::string lowerExt(const std::filesystem::path& p) {
-    std::string e = narrow(p.extension().wstring());
-    std::transform(e.begin(), e.end(), e.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return e;
-}
-
 // Shallowest directory under 'tree' that directly contains a .fx file.
 std::optional<std::filesystem::path> findShaderRoot(const std::filesystem::path& tree) {
     std::error_code ec;
