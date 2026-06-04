@@ -495,11 +495,10 @@ void App::processToggles() {
         return;
     ui::markAnimActive();
     if (!store_) { togglePending_.clear(); return; }
-    auto it = togglePending_.begin();
-    store_->setEnabled(it->first, it->second);
-    togglePending_.erase(it);
-    if (togglePending_.empty())
-        store_->flush();
+    for (const auto& [modId, desired] : togglePending_)
+        store_->setEnabled(modId, desired);
+    togglePending_.clear();
+    store_->flush();
 }
 
 void App::moveMod(int from, int to, bool record) {
