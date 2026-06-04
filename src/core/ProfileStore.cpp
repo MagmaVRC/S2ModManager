@@ -387,29 +387,21 @@ std::string ProfileStore::duplicateProfile(const std::string& id, const std::str
     const std::string pid = "p" + std::to_string(nextSeq_++);
     profiles_.push_back({ pid, newName });
     for (const auto& m : src) {
-        std::vector<std::pair<std::string, Bytes>> files;
         const auto rels = m.kind == ModKind::Ue4ss ? m.files : [&] {
             std::vector<std::string> r;
             for (const auto& ext : m.exts) r.push_back(m.stem + ext);
             return r;
         }();
-        for (const auto& rel : rels) {
-            Bytes bytes;
-            if (vfs_.read(blobKey(id, m, rel), bytes))
-                files.emplace_back(rel, std::move(bytes));
-        }
-        storeModFiles(pid, m, files);   // same ids; keys are profile-scoped so no clash
+        for (const auto& rel : rels)
+            vfs_.copyEntry(blobKey(id, m, rel), blobKey(pid, m, rel));
     }
     writeManifest(pid, src);
 
     std::vector<ReshadePreset> srcPresets;
     int srcActive = 0;
     readPresetManifest(id, srcPresets, srcActive);
-    for (const auto& p : srcPresets) {
-        Bytes bytes;
-        if (vfs_.read(presetBlobKey(id, p.id), bytes))
-            vfs_.write(presetBlobKey(pid, p.id), bytes);
-    }
+    for (const auto& p : srcPresets)
+        vfs_.copyEntry(presetBlobKey(id, p.id), presetBlobKey(pid, p.id));
     writePresetManifest(pid, srcPresets, srcActive);
 
     writeIndex();

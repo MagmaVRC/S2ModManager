@@ -154,6 +154,23 @@ void Vfs::writeText(const std::string& path, const std::string& text) {
     write(path, Bytes(text.begin(), text.end()));
 }
 
+bool Vfs::copyEntry(const std::string& src, const std::string& dst) {
+    auto it = entries_.find(src);
+    if (it == entries_.end())
+        return false;
+    Entry e = it->second;
+    if (e.onDisk) {
+        Bytes comp;
+        if (!readCompressed(e, comp))
+            return false;
+        e.blob = std::move(comp);
+    }
+    e.onDisk = false;
+    entries_[dst] = std::move(e);
+    dirty_ = true;
+    return true;
+}
+
 void Vfs::remove(const std::string& path) {
     if (entries_.erase(path))
         dirty_ = true;

@@ -32,6 +32,9 @@ public:
     /// <summary>Stores UTF-8 text.</summary>
     void writeText(const std::string& path, const std::string& text);
 
+    /// <summary>Copies an entry's compressed blob to a new path without decompressing.</summary>
+    bool copyEntry(const std::string& src, const std::string& dst);
+
     /// <summary>Removes an entry.</summary>
     void remove(const std::string& path);
 
