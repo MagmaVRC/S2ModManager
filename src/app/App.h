@@ -137,6 +137,7 @@ private:
     core::Game game_;
     bool gameReady_ = false;
     bool sn2ModSettingsNeeded_ = false;   // cached: a UE4SS mod references SN2ModSettings (recomputed on load/sync)
+    std::vector<std::string> conflictWarnings_;  // cached conflict banners (recomputed on load/sync)
     std::string statusMessage_;
 
     ui::Background background_;

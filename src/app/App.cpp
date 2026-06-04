@@ -432,6 +432,7 @@ void App::loadMods() {
     for (const auto& m : store_->mods())
         mods_.push_back(makeEntry(m));
     sn2ModSettingsNeeded_ = anyModNeedsSn2ModSettings();
+    conflictWarnings_ = modConflictWarnings();
 
     shaders_.emplace(game_.paths());
     shaders_->load();
@@ -450,6 +451,7 @@ void App::syncModsFromStore() {
         for (int i = 0; i < static_cast<int>(mods_.size()); ++i)
             if (mods_[i].modId == selId) { selected_ = i; break; }
     sn2ModSettingsNeeded_ = anyModNeedsSn2ModSettings();
+    conflictWarnings_ = modConflictWarnings();
 }
 
 void App::reorderInStore() {
@@ -1290,8 +1292,8 @@ void App::renderBanners() {
     if (sn2ModSettingsMissing())
         banners.push_back({ "An installed mod needs SN2ModSettings for its in-game options menu, "
                             "but it isn't installed. Add it like any other UE4SS mod.", colWarn });
-    for (auto& c : modConflictWarnings())
-        banners.push_back({ std::move(c), colWarn });
+    for (const auto& c : conflictWarnings_)
+        banners.push_back({ c, colWarn });
     if (banners.empty())
         return;
 
