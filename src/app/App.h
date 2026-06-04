@@ -18,6 +18,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace app {
@@ -32,6 +33,7 @@ struct ModEntry {
     core::ModKind type = core::ModKind::Pak;
     bool enabled = true;
     int modId = 0;   // links the row to its core::ProfileMod in the active profile
+    std::string rowKey;  // cached std::to_string(modId) for per-frame lookups
 };
 
 /// <summary>Stage of the background UE4SS install worker.</summary>
@@ -169,7 +171,7 @@ private:
     int  typeFilter_ = 0;                 // 0 = all, 1 = PAK, 2 = UE4SS
     std::unordered_map<int, bool> togglePending_;   // modId -> desired enabled
     bool focusSearch_ = false;            // request focus into the search box next frame
-    std::vector<int> knownRows_;          // mod ids present last frame, to detect new rows for the enter animation
+    std::unordered_set<int> knownRows_;   // mod ids present last frame, to detect new rows for the enter animation
     ui::AnimFloat dropAnim_;              // 0 = no drag over window, 1 = file dragged over
     bool dragOver_ = false;
 

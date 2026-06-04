@@ -51,6 +51,7 @@ ModEntry makeEntry(const core::ProfileMod& m) {
     e.type = m.kind;
     e.enabled = m.enabled;
     e.modId = m.id;
+    e.rowKey = std::to_string(m.id);
     return e;
 }
 
@@ -1921,7 +1922,7 @@ void App::renderModList() {
     const float oy = rc0.y - scrollY;   // screen y of content slot 0
 
     for (const auto& m : mods_)
-        if (std::find(knownRows_.begin(), knownRows_.end(), m.modId) == knownRows_.end())
+        if (!knownRows_.contains(m.modId))
             seedRowReveal(std::to_string(m.modId).c_str(), 0.0f);
 
     if (!settingsOpen_ && !shareModalOpen_ && !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Escape))
@@ -1960,7 +1961,7 @@ void App::renderModList() {
     int vis = 0;
     for (int i = 0; i < n; ++i) {
         if (filtering && !rowShown(i)) continue;
-        const std::string rowKey = std::to_string(mods_[i].modId);   // unique even if names collide
+        const std::string& rowKey = mods_[i].rowKey;
         ImGuiID yId = ImGui::GetID(rowKey.c_str());
         float reveal = rowReveal(rowKey.c_str(), true, 16.0f);
         float targetY = filtering ? (vis * pitch) : (slotOf(i) * pitch);
@@ -2135,7 +2136,7 @@ void App::renderModList() {
     ImGui::Dummy(ImVec2(1.0f, 1.0f));
 
     knownRows_.clear();
-    for (const auto& m : mods_) knownRows_.push_back(m.modId);
+    for (const auto& m : mods_) knownRows_.insert(m.modId);
 
     ImGui::EndChild();
 }
