@@ -64,13 +64,16 @@ bool colorRow(const char* label, std::uint32_t* packed) {
 
 bool matchesSearch(const std::string& name, const char* query) {
     if (!query || !query[0]) return true;
-    std::string n = name, q = query;
-    auto low = [](std::string& sv) {
-        std::transform(sv.begin(), sv.end(), sv.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    };
-    low(n); low(q);
-    return n.find(q) != std::string::npos;
+    const std::size_t qlen = std::strlen(query);
+    if (qlen > name.size()) return false;
+    for (std::size_t i = 0; i <= name.size() - qlen; ++i) {
+        bool ok = true;
+        for (std::size_t j = 0; j < qlen; ++j)
+            if (std::tolower(static_cast<unsigned char>(name[i + j])) !=
+                std::tolower(static_cast<unsigned char>(query[j]))) { ok = false; break; }
+        if (ok) return true;
+    }
+    return false;
 }
 
 float rowReveal(const char* name, bool present, float speed) {
