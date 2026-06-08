@@ -48,6 +48,7 @@ void to_json(nlohmann::json& j, const Config& c) {
         {"light", paletteToJson(c.light)},
         {"dark", paletteToJson(c.dark)},
         {"vsync", c.vsync},
+        {"renderMode", c.renderMode},
         {"uiScale", c.uiScale},
         {"activeProfileName", c.activeProfileName},
         {"includePrereleases", c.includePrereleases},
@@ -82,6 +83,7 @@ void from_json(const nlohmann::json& j, Config& c) {
     c.light             = j.contains("light") ? paletteFromJson(j["light"], defaultLight()) : defaultLight();
     c.dark              = j.contains("dark")  ? paletteFromJson(j["dark"],  defaultDark())  : defaultDark();
     c.vsync             = j.value("vsync", true);
+    c.renderMode        = j.value("renderMode", 0);
     c.uiScale           = j.value("uiScale", 1.0f);
     c.activeProfileName = j.value("activeProfileName", "Vanilla");
     c.includePrereleases = j.value("includePrereleases", false);
@@ -107,6 +109,7 @@ void from_json(const nlohmann::json& j, Config& c) {
 static void validate(Config& c) {
     auto clamp01 = [](float& v) { if (v < 0.0f) v = 0.0f; if (v > 1.0f) v = 1.0f; };
     c.uiScale = std::clamp(c.uiScale, 0.5f, 2.5f);
+    c.renderMode = std::clamp(c.renderMode, 0, 1);
     if (c.themeMode != "dark" && c.themeMode != "light" && c.themeMode != "subnautica")
         c.themeMode = "subnautica";
     clamp01(c.background.blur);

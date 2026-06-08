@@ -42,6 +42,8 @@ struct Config {
     Palette dark = defaultDark();
     /// <summary>Whether vsync (present interval 1) is enabled.</summary>
     bool vsync = true;
+    /// <summary>Render mode: 0 = reduced (idle when static), 1 = always (continuous rendering).</summary>
+    int renderMode = 0;
     /// <summary>UI scale multiplier applied on top of DPI (0.5–2.5).</summary>
     float uiScale = 1.0f;
     /// <summary>Name of the currently active profile.</summary>
