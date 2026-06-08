@@ -1573,19 +1573,44 @@ void App::renderShareModal() {
     if (ImGui::InvisibleButton("##shareScrim", full))
         shareModalOpen_ = false;
 
-    const float W = 452.0f * s;
-    const float winPad = 18.0f * s;
+    float maxInner = 452.0f * s;
+    float shareMargin = std::max(12.0f * s, full.x * 0.06f);
+    const float W = std::min(maxInner, full.x - shareMargin * 2.0f - 36.0f * s);
+    const float winPad = std::clamp(W * 0.04f, 10.0f * s, 18.0f * s);
     const float cardW = W + winPad * 2.0f;
-    float cardX = std::max(16.0f * s, (full.x - cardW) * 0.5f);
-    float cardTop = full.y * 0.12f + (1.0f - e) * 16.0f * s;
+    float cardX = (full.x - cardW) * 0.5f;
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, e);
+
+    float headerTop = full.y * 0.10f - 38.0f * s + (1.0f - e) * 16.0f * s;
+    ImGui::SetCursorPos(ImVec2(cardX, headerTop));
+    if (ui::ghostButton("Back", ui::icons().tex(ui::Icon::ChevronLeft), ImVec2(90.0f * s, 28.0f * s)))
+        shareModalOpen_ = false;
+    {
+        ImGui::PushFont(fonts().title);
+        float th = ImGui::GetTextLineHeight();
+        ImVec2 wp = ImGui::GetWindowPos();
+        ImVec4 tc = toVec(colTextHi); tc.w *= e;
+        textSnapped(ImGui::GetWindowDrawList(),
+                    ImVec2(wp.x + cardX + 102.0f * s, wp.y + headerTop + (28.0f * s - th) * 0.5f),
+                    ImGui::ColorConvertFloat4ToU32(tc), "Share Profile");
+        ImGui::PopFont();
+    }
+
+    float cardTop = headerTop + 38.0f * s + (1.0f - e) * 8.0f * s;
     ImGui::SetCursorPos(ImVec2(cardX, cardTop));
     ImGui::PushStyleColor(ImGuiCol_ChildBg, toVec(panelBg(colSurface)));
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f * s);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(winPad, 16.0f * s));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(winPad, 14.0f * s));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f * s, 8.0f * s));
     ImGui::BeginChild("##shareCard", ImVec2(cardW, 0.0f),
                       ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
                       ImGuiWindowFlags_NoScrollbar);
+
+    if (config_.themeMode == "subnautica") {
+        ImVec2 cp = ImGui::GetWindowPos();
+        float cw2 = ImGui::GetWindowWidth(), ch2 = ImGui::GetWindowHeight();
+        glassPanel(ImGui::GetWindowDrawList(), cp, ImVec2(cp.x + cw2, cp.y + ch2), s);
+    }
 
     if (shareService_.busy())
         ui::markAnimActive();
@@ -1607,40 +1632,13 @@ void App::renderShareModal() {
 
     ImGui::Dummy(ImVec2(W, 0.0f));
 
-    // ---- Header: glyph + title + active-profile subtitle ------------------
     {
         ImVec2 p = ImGui::GetCursorScreenPos();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        float icR = 14.0f * s;
-        ImVec2 ic(p.x + icR, p.y + icR);
-        dl->AddCircleFilled(ic, icR, colAccentDim);
-        if (ImTextureID sh = ui::icons().tex(ui::Icon::Share)) {
-            float is = icR * 1.15f;
-            ui::drawIconTex(dl, sh, ImVec2(px(ic.x - is * 0.5f), px(ic.y - is * 0.5f)),
-                            ImVec2(px(ic.x - is * 0.5f) + is, px(ic.y - is * 0.5f) + is), colAccentHi);
-        } else {
-            drawShareGlyph(dl, ImVec2(ic.x - 1.0f * s, ic.y), icR * 0.5f, colAccentHi);
-        }
-
-        float tx = p.x + icR * 2.0f + 12.0f * s;
-        ImGui::PushFont(fonts().title);
-        textSnapped(dl, ImVec2(tx, p.y - 1.0f * s), colTextHi, "Share Profile");
-        ImGui::PopFont();
         std::string sub = store_ ? std::format("Active profile: {}", store_->activeName())
                                  : "No profile selected";
-        textSnapped(dl, ImVec2(tx, p.y + 16.0f * s), colTextDim, sub.c_str());
-
-        float xsz = 24.0f * s;
-        ImGui::SetCursorScreenPos(ImVec2(p.x + W - xsz, p.y - 2.0f * s));
-        ImTextureID xico = ui::icons().tex(ui::Icon::Close);
-        bool closeClick = xico ? ui::iconButton("##shareclose", xico, ImVec2(xsz, xsz), colTextDim, false)
-                               : ui::ghostButton("X", ImVec2(xsz, xsz));
-        if (closeClick)
-            shareModalOpen_ = false;
-
-        ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + icR * 2.0f + 4.0f * s));
+        textSnapped(ImGui::GetWindowDrawList(), ImVec2(p.x, p.y), colTextDim, sub.c_str());
+        ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + ImGui::GetTextLineHeight() + 4.0f * s));
     }
-    ImGui::Spacing();
 
     // ---- Segmented tab control -------------------------------------------
     if (hosting) shareTab_ = 0;
@@ -1732,7 +1730,7 @@ void App::renderShareModal() {
                 ImGui::Spacing();
                 bool copied = (now - keyCopiedAt_) < 1.3;
                 ImTextureID copyIco = ui::icons().tex(copied ? ui::Icon::Check : ui::Icon::Copy);
-                if (ui::ghostButton(copied ? "Copied!" : "Copy to clipboard", copyIco, ImVec2(178.0f * s, 28.0f * s))) {
+                if (ui::ghostButton(copied ? "Copied!" : "Copy to clipboard", copyIco, ImVec2(std::min(178.0f * s, innerW), 28.0f * s))) {
                     ImGui::SetClipboardText(key.c_str());
                     keyCopiedAt_ = now;
                 }
@@ -1835,6 +1833,7 @@ void App::renderShareModal() {
     ImGui::EndChild();      // ##shareCard
     ImGui::PopStyleVar(3);  // window padding + child rounding + item spacing
     ImGui::PopStyleColor(); // card surface
+    ImGui::PopStyleVar();   // alpha
     ImGui::EndChild();      // ##shareOverlay
     ImGui::PopStyleColor(); // overlay bg
 }
@@ -2598,7 +2597,8 @@ void App::renderSettingsView(float a) {
     float colW = std::min(860.0f * s, w - margin * 2.0f);
     float x = (w - colW) * 0.5f;
     float e = ui::easeOutCubic(a);
-    float slide = (1.0f - e) * 16.0f * s;
+    float headerSlide = (1.0f - e) * 16.0f * s;
+    float cardSlide = (1.0f - e) * 28.0f * s;
 
     float sliderW = std::min(280.0f * s, colW * 0.45f);
 
@@ -2606,39 +2606,66 @@ void App::renderSettingsView(float a) {
         std::string up(t);
         for (char& ch : up) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
         ImGui::PushFont(fonts().label);
+        ImVec2 cp = ImGui::GetCursorScreenPos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        float lh = ImGui::GetTextLineHeight();
+        dl->AddRectFilled(ImVec2(cp.x, cp.y + 1.0f), ImVec2(cp.x + 2.0f * s, cp.y + lh - 1.0f), colAccent);
+        ImGui::Indent(8.0f * s);
         ImGui::TextColored(toVec(colTextDim), "%s", up.c_str());
+        ImGui::Unindent(8.0f * s);
         ImGui::PopFont();
     };
 
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, e);
 
-    float top = 22.0f * s + slide;
+    float top = 22.0f * s + headerSlide;
+    bool narrowHeader = (colW / s) < 360.0f;
     ImGui::SetCursorPos(ImVec2(x, top));
-    if (ui::ghostButton("Back", ui::icons().tex(ui::Icon::ChevronLeft), ImVec2(90.0f * s, 28.0f * s)))
-        settingsOpen_ = false;
+    if (narrowHeader) {
+        if (ui::iconButton("back", ui::icons().tex(ui::Icon::ChevronLeft), ImVec2(28.0f * s, 28.0f * s), colTextDim))
+            settingsOpen_ = false;
+    } else {
+        if (ui::ghostButton("Back", ui::icons().tex(ui::Icon::ChevronLeft), ImVec2(90.0f * s, 28.0f * s)))
+            settingsOpen_ = false;
+    }
     {
         ImGui::PushFont(fonts().title);
         float th = ImGui::GetTextLineHeight();
         ImVec2 wp = ImGui::GetWindowPos();
+        float titleOff = narrowHeader ? 40.0f * s : 102.0f * s;
         ImVec4 tc = toVec(colTextHi); tc.w *= e;
         textSnapped(ImGui::GetWindowDrawList(),
-                    ImVec2(wp.x + x + 102.0f * s, wp.y + top + (28.0f * s - th) * 0.5f),
+                    ImVec2(wp.x + x + titleOff, wp.y + top + (28.0f * s - th) * 0.5f),
                     ImGui::ColorConvertFloat4ToU32(tc), "Settings");
         ImGui::PopFont();
     }
 
-    float cardTop = top + 38.0f * s;
-    float cardH = std::max(120.0f * s, h - cardTop - 22.0f * s);
+    float cardTop = top + 38.0f * s + (cardSlide - headerSlide);
+    float cardH = std::max(120.0f * s, h - cardTop - 16.0f * s);
     ImGui::SetCursorPos(ImVec2(x, cardTop));
     ImGui::PushStyleColor(ImGuiCol_ChildBg, toVec(panelBg(colSurface)));
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f * s);
-    float cardPad = std::min(20.0f * s, colW * 0.04f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(cardPad, 16.0f * s));
+    float cardPad = std::clamp(colW * 0.03f, 10.0f * s, 24.0f * s);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(cardPad, 14.0f * s));
     ImGui::BeginChild("##settingsCol", ImVec2(colW, cardH),
                       ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding);
 
+    if (config_.themeMode == "subnautica") {
+        ImVec2 cp = ImGui::GetWindowPos();
+        float cw = ImGui::GetWindowWidth(), ch2 = ImGui::GetWindowHeight();
+        glassPanel(ImGui::GetWindowDrawList(), cp, ImVec2(cp.x + cw, cp.y + ch2), s);
+    }
+
+    bool twoCol = (colW / s) >= 500.0f;
+
     if (ImGui::BeginTabBar("##settingsTabs")) {
         if (ImGui::BeginTabItem("General")) {
+            if (twoCol) {
+                ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(12.0f * s, 0.0f));
+                ImGui::BeginTable("##genCols", 2, ImGuiTableFlags_SizingStretchSame);
+                ImGui::TableNextColumn();
+            }
+
             fieldLabel("Game folder");
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::InputTextWithHint("##game", "path to Subnautica 2", gamePathBuffer_.data(), gamePathBuffer_.size())) {
@@ -2683,7 +2710,8 @@ void App::renderSettingsView(float a) {
                     platform::openUrl(update.releaseUrl.empty() ? core::kAppReleasesUrl : update.releaseUrl);
             }
 
-            ImGui::Dummy(ImVec2(0, 8));
+            if (twoCol) ImGui::TableNextColumn();
+            else ImGui::Dummy(ImVec2(0, 8));
             fieldLabel("UE4SS");
             const Ue4ssStage stage = ue4ssStage_.load();
             if (ue4ssBusy(stage)) {
@@ -2819,10 +2847,17 @@ void App::renderSettingsView(float a) {
                     installReshade();
             }
 
+            if (twoCol) { ImGui::EndTable(); ImGui::PopStyleVar(); }
             ImGui::EndTabItem();
         }
 
         if (ImGui::BeginTabItem("Appearance")) {
+            if (twoCol) {
+                ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(12.0f * s, 0.0f));
+                ImGui::BeginTable("##appCols", 2, ImGuiTableFlags_SizingStretchSame);
+                ImGui::TableNextColumn();
+            }
+
             int mode = config_.themeMode == "light" ? 2 : (config_.themeMode == "dark" ? 1 : 0);
             fieldLabel("Theme");
             if (ImGui::RadioButton("Subnautica", &mode, 0)) { config_.themeMode = "subnautica"; applyActivePalette(); reloadBackground(); saveConfig(); }
@@ -2842,7 +2877,20 @@ void App::renderSettingsView(float a) {
             if (ImGui::Combo("##rendermode", &config_.renderMode, renderModes, 2))
                 saveConfig();
 
-            ImGui::Dummy(ImVec2(0, 6));
+            ImGui::Dummy(ImVec2(0, 4));
+            fieldLabel("UI scale");
+            ImGui::SetNextItemWidth(sliderW);
+            ImGui::SliderFloat("##uiscale", &uiScaleSetting_, 0.5f, 2.5f, "%.2f");
+            if (ImGui::IsItemDeactivatedAfterEdit() && uiScaleSetting_ != uiScaleCurrent_) {
+                scaleAnimFrom_ = uiScaleCurrent_;
+                scaleAnimTo_ = uiScaleSetting_;
+                scaleAnimT_ = 0.0f;
+                config_.uiScale = uiScaleSetting_;
+                saveConfig();
+            }
+
+            if (twoCol) ImGui::TableNextColumn();
+            else ImGui::Dummy(ImVec2(0, 6));
             ImGui::SeparatorText("Background");
             core::BackgroundConfig& bg = config_.background;
             if (ImGui::Checkbox("Enable background image", &bg.enabled)) {
@@ -2908,17 +2956,7 @@ void App::renderSettingsView(float a) {
             }
             ImGui::EndDisabled();
 
-            ImGui::Dummy(ImVec2(0, 4));
-            fieldLabel("UI scale");
-            ImGui::SetNextItemWidth(sliderW);
-            ImGui::SliderFloat("##uiscale", &uiScaleSetting_, 0.5f, 2.5f, "%.2f");
-            if (ImGui::IsItemDeactivatedAfterEdit() && uiScaleSetting_ != uiScaleCurrent_) {
-                scaleAnimFrom_ = uiScaleCurrent_;
-                scaleAnimTo_ = uiScaleSetting_;
-                scaleAnimT_ = 0.0f;
-                config_.uiScale = uiScaleSetting_;
-                saveConfig();
-            }
+            if (twoCol) { ImGui::EndTable(); ImGui::PopStyleVar(); }
 
             ImGui::Dummy(ImVec2(0, 6));
             ImGui::TextColored(toVec(colTextDim), "Palette — %s", config_.themeMode.c_str());
