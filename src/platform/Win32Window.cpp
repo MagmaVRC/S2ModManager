@@ -431,6 +431,15 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             mmi->ptMinTrackSize.y = static_cast<LONG>(380.0f * ds);
             return 0;
         }
+        case WM_ENTERSIZEMOVE:
+            SetTimer(hWnd, 1, 16, nullptr);
+            return 0;
+        case WM_EXITSIZEMOVE:
+            KillTimer(hWnd, 1);
+            return 0;
+        case WM_TIMER:
+            if (wParam == 1) { RenderFrame(); return 0; }
+            break;
         case WM_SYSCOMMAND:
             if ((wParam & 0xfff0) == SC_KEYMENU)
                 return 0;
