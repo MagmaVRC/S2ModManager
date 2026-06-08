@@ -59,6 +59,12 @@ public:
     /// the only safe place to rebuild the font atlas or other device resources.</summary>
     void onBetweenFrames(std::function<void()> cb);
 
+    /// <summary>Returns the current window client rect and maximized state for persistence.</summary>
+    void getPlacement(int& x, int& y, int& w, int& h, bool& maximized) const;
+
+    /// <summary>Restores the window to a previously saved position and size.</summary>
+    void restorePlacement(int x, int y, int w, int h, bool maximized);
+
     /// <summary>Enables a layered backdrop blur: the scene rendered before <paramref name="markerDrawList"/>
     /// is blurred and everything from that draw list on is composited sharp on top. Pass amount 0 to disable.</summary>
     /// <param name="markerDrawList">The overlay window's draw list (split point); null disables.</param>

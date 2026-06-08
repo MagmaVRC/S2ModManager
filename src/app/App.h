@@ -67,6 +67,12 @@ public:
     /// <summary>Connects the window so settings can drive vsync and file drops.</summary>
     void attachWindow(platform::Win32Window* win);
 
+    /// <summary>Restores the window position and size from the saved config.</summary>
+    void restoreWindow(platform::Win32Window& win);
+
+    /// <summary>Saves the current window position and size to config.</summary>
+    void saveWindow(platform::Win32Window& win);
+
     /// <summary>Releases GPU-backed resources (the background) before the device is torn down.</summary>
     void onShutdown();
 

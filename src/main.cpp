@@ -17,6 +17,7 @@ int WINAPI wWinMain(
         return 1;
 
     app::App application;
+    application.restoreWindow(window);
     application.onScaleChanged(window.contentScale());
 
     window.onDpiChanged([&application](float scale) {
@@ -32,6 +33,7 @@ int WINAPI wWinMain(
             window.requestRedraw(2);
     });
 
+    application.saveWindow(window);
     application.onShutdown();
     window.shutdown();
     return 0;

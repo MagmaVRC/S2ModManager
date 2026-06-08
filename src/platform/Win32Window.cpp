@@ -543,6 +543,28 @@ void Win32Window::onBetweenFrames(std::function<void()> cb) {
     g_betweenFramesCb = std::move(cb);
 }
 
+void Win32Window::getPlacement(int& x, int& y, int& w, int& h, bool& maximized) const {
+    if (!g_hwnd) { x = y = w = h = 0; maximized = false; return; }
+    WINDOWPLACEMENT wp{};
+    wp.length = sizeof(wp);
+    GetWindowPlacement(g_hwnd, &wp);
+    maximized = (wp.showCmd == SW_MAXIMIZE);
+    RECT r = wp.rcNormalPosition;
+    x = r.left;
+    y = r.top;
+    w = r.right - r.left;
+    h = r.bottom - r.top;
+}
+
+void Win32Window::restorePlacement(int x, int y, int w, int h, bool maximized) {
+    if (!g_hwnd || w <= 0 || h <= 0) return;
+    WINDOWPLACEMENT wp{};
+    wp.length = sizeof(wp);
+    wp.rcNormalPosition = { x, y, x + w, y + h };
+    wp.showCmd = maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
+    SetWindowPlacement(g_hwnd, &wp);
+}
+
 void Win32Window::setBackdropBlur(const ImDrawList* markerDrawList, float amount) {
     g_blurMarker = markerDrawList;
     g_blurAmount = amount;
