@@ -189,6 +189,12 @@ private:
     std::vector<Toast> toasts_;
     float dpiScale_ = 1.0f;
     bool fontReloadPending_ = false;
+    bool showExtraCols_ = true;
+    bool showVerCol_ = true;
+    bool compactBar_ = false;
+    ui::AnimFloat detailsAnim_{ 1.0f, 1.0f, 14.0f };
+    ui::AnimFloat colFadeAnim_{ 1.0f, 1.0f, 14.0f };
+    ui::AnimFloat verFadeAnim_{ 1.0f, 1.0f, 14.0f };
 
     History history_;     // undo/redo stack
 

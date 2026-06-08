@@ -38,6 +38,22 @@ namespace {
 constexpr float kTopBarH  = 40.0f;
 constexpr float kDetailsW = 300.0f;
 
+bool wantsDetailsPanel(float windowW, float s) {
+    return (windowW / s) >= 780.0f;
+}
+
+bool wantsExtraCols(float listW, float s) {
+    return (listW / s) >= 560.0f;
+}
+
+bool wantsVerCol(float listW, float s) {
+    return (listW / s) >= 420.0f;
+}
+
+bool wantsTitle(float windowW, float listW, float s) {
+    return (listW / s) >= 420.0f;
+}
+
 ImU32 typeColor(core::ModKind t) { return t == core::ModKind::Pak ? colAccent : IM_COL32(178, 138, 255, 255); }
 const char* typeLabel(core::ModKind t) { return t == core::ModKind::Pak ? "PAK" : "UE4SS"; }
 
@@ -387,6 +403,15 @@ void App::saveConfig() {
     config_.uiScale = uiScaleSetting_;
     if (store_)
         config_.activeProfileName = store_->activeName();
+    if (window_) {
+        int wx, wy, ww, wh; bool mx;
+        window_->getPlacement(wx, wy, ww, wh, mx);
+        if (ww > 0 && wh > 0) {
+            config_.windowX = wx; config_.windowY = wy;
+            config_.windowWidth = ww; config_.windowHeight = wh;
+            config_.windowMaximized = mx;
+        }
+    }
     saveDirty_ = true;
     saveTimer_ = 0.4f;
     if (window_)
@@ -1074,6 +1099,8 @@ void App::render(int displayW, int displayH) {
 
     if (ImGui::GetIO().WantTextInput || ImGui::IsAnyItemActive())
         ui::markAnimActive();
+    if (config_.renderMode == 1)
+        ui::markAnimActive();
 
     renderToasts();
 
@@ -1093,8 +1120,10 @@ void App::render(int displayW, int displayH) {
     ImGui::Begin("##root", nullptr, flags);
     ImGui::PopStyleVar();
 
-    if (backgroundActive())
-        background_.draw(ImVec2(w, h));
+    if (backgroundActive()) {
+        if (background_.draw(ImVec2(w, h)))
+            ui::markAnimActive();
+    }
 
     if (config_.themeMode == "subnautica") {
         ImVec4 hc = toVec(colAccent); hc.w = backgroundActive() ? 0.11f : 0.07f;
@@ -1125,21 +1154,35 @@ void App::render(int displayW, int displayH) {
 
     renderBanners();
 
+    detailsAnim_.to(wantsDetailsPanel(w, s) ? 1.0f : 0.0f);
+    float da = detailsAnim_.update(ImGui::GetIO().DeltaTime);
+    if (da != detailsAnim_.target) ui::markAnimActive();
+    float detailsW = kDetailsW * s * da;
+    float listW = w - detailsW;
+    showExtraCols_ = wantsExtraCols(listW, s);
+    showVerCol_ = wantsVerCol(listW, s);
+    compactBar_ = !wantsTitle(w, listW, s);
+
     ImGui::PushStyleColor(ImGuiCol_ChildBg, toVec(panelBg(colBg)));
-    ImGui::BeginChild("##list", ImVec2(w - kDetailsW * s, 0.0f), ImGuiChildFlags_None,
+    ImGui::BeginChild("##list", ImVec2(w - detailsW, 0.0f), ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     renderModList();
     ImGui::EndChild();
     ImGui::PopStyleColor();
 
-    ImGui::SameLine(0.0f, 0.0f);
+    if (da > 0.001f) {
+        ImGui::SameLine(0.0f, 0.0f);
 
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, toVec(panelBg(colSurface)));
-    ImGui::BeginChild("##details", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None,
-                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    renderDetails();
-    ImGui::EndChild();
-    ImGui::PopStyleColor();
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, toVec(panelBg(colSurface)));
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, da);
+        ImGui::BeginChild("##details", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        if (da > 0.01f)
+            renderDetails();
+        ImGui::EndChild();
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor();
+    }
 
     if (a > 0.001f)
         renderSettingsView(a);
@@ -1289,35 +1332,86 @@ void App::renderTopBar() {
         titleX = o.x + 34.0f * s;
     }
 
-    ImGui::PushFont(fonts().semibold);
-    float titleH = ImGui::GetTextLineHeight();
-    textSnapped(dl, ImVec2(titleX, o.y + (barH - titleH) * 0.5f), colTextHi, "S2 Mod Manager");
-    ImGui::PopFont();
+    bool hasUpdate = false;
+    std::string updateUrl;
+    {
+        std::lock_guard<std::mutex> lk(updateMutex_);
+        hasUpdate = updateResult_.ok && updateResult_.updateAvailable;
+        if (hasUpdate)
+            updateUrl = updateResult_.releaseUrl.empty() ? core::kAppReleasesUrl : updateResult_.releaseUrl;
+    }
+
+    if (!compactBar_) {
+        ImGui::PushFont(fonts().semibold);
+        float titleH = ImGui::GetTextLineHeight();
+        textSnapped(dl, ImVec2(titleX, o.y + (barH - titleH) * 0.5f), colTextHi, "S2 Mod Manager");
+        ImGui::PopFont();
+    }
 
     float bh = 26.0f * s;
-    float launchW = 98.0f * s, gearW = 90.0f * s, shareW = 80.0f * s, profW = 140.0f * s, gapX = 8.0f * s;
-    float x = w - launchW - 10.0f * s;
-    ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
-    ImGui::BeginDisabled(!game_.ue4ssInstalled());
-    if (ui::primaryButton("Launch", ui::icons().tex(ui::Icon::Play), ImVec2(launchW, bh)))
-        launchClicked();
-    ImGui::EndDisabled();
+    bool compact = compactBar_;
+    float gapX = compact ? 4.0f * s : 8.0f * s;
+    float profW = compact ? 100.0f * s : 140.0f * s;
 
-    x -= gearW + gapX;
-    ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
-    if (ui::ghostButton("Settings", ui::icons().tex(ui::Icon::Settings), ImVec2(gearW, bh)))
-        settingsOpen_ = !settingsOpen_;
+    if (compact) {
+        float ibsz = bh;
+        float x = w - ibsz - 10.0f * s;
+        ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
+        ImGui::BeginDisabled(!game_.ue4ssInstalled());
+        if (ui::iconButton("launch", ui::icons().tex(ui::Icon::Play), ImVec2(ibsz, bh), colAccent))
+            launchClicked();
+        ImGui::EndDisabled();
 
-    x -= shareW + gapX;
-    ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
-    ImGui::BeginDisabled(!game_.ue4ssInstalled());
-    if (ui::ghostButton("Share", ui::icons().tex(ui::Icon::Share), ImVec2(shareW, bh)))
-        shareModalOpen_ = true;
-    ImGui::EndDisabled();
+        x -= ibsz + gapX;
+        float gearX = x;
+        ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
+        if (ui::iconButton("settings", ui::icons().tex(ui::Icon::Settings), ImVec2(ibsz, bh), colTextDim))
+            settingsOpen_ = !settingsOpen_;
+        if (hasUpdate) {
+            float dotR = 3.5f * s;
+            dl->AddCircleFilled(ImVec2(o.x + gearX + ibsz - dotR, o.y + (barH - bh) * 0.5f + dotR + 1.0f * s), dotR, colAccent);
+        }
 
-    x -= profW + gapX;
-    ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
-    renderProfileCombo(profW);
+        x -= ibsz + gapX;
+        ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
+        ImGui::BeginDisabled(!game_.ue4ssInstalled());
+        if (ui::iconButton("share", ui::icons().tex(ui::Icon::Share), ImVec2(ibsz, bh), colTextDim))
+            shareModalOpen_ = true;
+        ImGui::EndDisabled();
+
+        x -= profW + gapX;
+        ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
+        renderProfileCombo(profW);
+    } else {
+        float launchW = 98.0f * s, gearW = 90.0f * s, shareW = 80.0f * s;
+        float x = w - launchW - 10.0f * s;
+        ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
+        ImGui::BeginDisabled(!game_.ue4ssInstalled());
+        if (ui::primaryButton("Launch", ui::icons().tex(ui::Icon::Play), ImVec2(launchW, bh)))
+            launchClicked();
+        ImGui::EndDisabled();
+
+        x -= gearW + gapX;
+        float gearX = x;
+        ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
+        if (ui::ghostButton("Settings", ui::icons().tex(ui::Icon::Settings), ImVec2(gearW, bh)))
+            settingsOpen_ = !settingsOpen_;
+        if (hasUpdate) {
+            float dotR = 3.5f * s;
+            dl->AddCircleFilled(ImVec2(o.x + gearX + gearW - dotR - 2.0f * s, o.y + (barH - bh) * 0.5f + dotR + 1.0f * s), dotR, colAccent);
+        }
+
+        x -= shareW + gapX;
+        ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
+        ImGui::BeginDisabled(!game_.ue4ssInstalled());
+        if (ui::ghostButton("Share", ui::icons().tex(ui::Icon::Share), ImVec2(shareW, bh)))
+            shareModalOpen_ = true;
+        ImGui::EndDisabled();
+
+        x -= profW + gapX;
+        ImGui::SetCursorPos(ImVec2(x, (barH - bh) * 0.5f));
+        renderProfileCombo(profW);
+    }
 }
 
 void App::renderBanners() {
@@ -1808,7 +1902,7 @@ void App::renderModList() {
         if (!settingsOpen_ && !shareModalOpen_ && (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl))
             && ImGui::IsKeyPressed(ImGuiKey_F))
             focusSearch_ = true;
-        float searchW = 200.0f * s;
+        float searchW = showExtraCols_ ? 200.0f * s : 140.0f * s;
         ImGui::SetCursorPos(ImVec2(w - bw - pad - searchW - 8.0f * s, 10.0f * s));
         ImGui::SetNextItemWidth(searchW);
         if (focusSearch_) { ImGui::SetKeyboardFocusHere(); focusSearch_ = false; }
@@ -1839,15 +1933,27 @@ void App::renderModList() {
     const float headerH = 22.0f * s;
     const float listTop = 86.0f * s, rowH = 28.0f * s, rowGap = 4.0f * s, pitch = rowH + rowGap;
 
-    const float colFolderW = 92.0f * s, colLoadW = 74.0f * s, colTypeW = 58.0f * s, colVerW = 50.0f * s;
+    bool wantsCols = showExtraCols_;
+    colFadeAnim_.to(wantsCols ? 1.0f : 0.0f);
+    float cf = colFadeAnim_.update(ImGui::GetIO().DeltaTime);
+    if (cf != colFadeAnim_.target) ui::markAnimActive();
+
+    bool wantsVer = showVerCol_;
+    verFadeAnim_.to(wantsVer ? 1.0f : 0.0f);
+    float vf = verFadeAnim_.update(ImGui::GetIO().DeltaTime);
+    if (vf != verFadeAnim_.target) ui::markAnimActive();
+
+    const float colFolderW = 92.0f * s * cf, colLoadW = 74.0f * s * cf;
+    const float colTypeW = 58.0f * s, colVerW = 50.0f * s * vf;
     const float nameX = 78.0f * s;
     auto colX = [&](float contentW) {
         struct Cols { float ver, type, load, folder, nameMax; } c;
-        c.folder = contentW - colFolderW;
-        c.load   = c.folder - colLoadW;
-        c.type   = c.load - colTypeW;
-        c.ver    = c.type - colVerW;
-        c.nameMax = c.ver - 8.0f * s;
+        float right = contentW;
+        c.folder = right - colFolderW; right = c.folder;
+        c.load   = right - colLoadW;   right = c.load;
+        c.type   = right - colTypeW;   right = c.type;
+        c.ver    = right - colVerW;     right = c.ver;
+        c.nameMax = right - 8.0f * s;
         return c;
     };
 
@@ -1945,10 +2051,14 @@ void App::renderModList() {
         const float hw = w - 2.0f * pad;
         auto hc = colX(hw);
         textSnapped(dl, ImVec2(hx + nameX, hy), colTextDim, "NAME");
-        textSnapped(dl, ImVec2(hx + hc.ver, hy), colTextDim, "VER");
+        if (vf > 0.01f)
+            textSnapped(dl, ImVec2(hx + hc.ver, hy), ui::lerpColor(IM_COL32(0, 0, 0, 0), colTextDim, vf), "VER");
         textSnapped(dl, ImVec2(hx + hc.type, hy), colTextDim, "TYPE");
-        textSnapped(dl, ImVec2(hx + hc.load, hy), colTextDim, "LOAD");
-        textSnapped(dl, ImVec2(hx + hc.folder, hy), colTextDim, "FOLDER");
+        if (cf > 0.01f) {
+            ImU32 fadedDim = ui::lerpColor(IM_COL32(0, 0, 0, 0), colTextDim, cf);
+            textSnapped(dl, ImVec2(hx + hc.load, hy), fadedDim, "LOAD");
+            textSnapped(dl, ImVec2(hx + hc.folder, hy), fadedDim, "FOLDER");
+        }
         ImGui::PopFont();
         dl->AddLine(ImVec2(c0.x + pad, c0.y + listTop + headerH - 1.0f),
                     ImVec2(c0.x + pad + hw, c0.y + listTop + headerH - 1.0f), colBorder);
@@ -2089,23 +2199,31 @@ void App::renderModList() {
         textSnapped(rdl, ImVec2(p.x + nameX + indent, ty), nameCol, e.displayName.c_str());
         rdl->PopClipRect();
 
-        if (e.version.empty()) textSnapped(rdl, ImVec2(p.x + c.ver, ty), dimCol, "—");
-        else                   textSnapped(rdl, ImVec2(p.x + c.ver, ty), secCol, e.version.c_str());
+        if (vf > 0.01f) {
+            ImU32 vDim = ui::lerpColor(IM_COL32(0, 0, 0, 0), dimCol, vf);
+            ImU32 vSec = ui::lerpColor(IM_COL32(0, 0, 0, 0), secCol, vf);
+            if (e.version.empty()) textSnapped(rdl, ImVec2(p.x + c.ver, ty), vDim, "—");
+            else                   textSnapped(rdl, ImVec2(p.x + c.ver, ty), vSec, e.version.c_str());
+        }
 
         const char* tlabel = typeLabel(e.type);
         ui::pill(ImVec2(p.x + c.type, ty - 2.0f * s), tlabel, tcol);
 
-        if (e.type == core::ModKind::Pak && e.enabled) {
-            auto it = pakRank.find(e.modId);
-            std::string ld = std::format("#{:03}", it != pakRank.end() ? it->second : 0);
-            textSnapped(rdl, ImVec2(p.x + c.load, ty), secCol, ld.c_str());
-        } else {
-            textSnapped(rdl, ImVec2(p.x + c.load, ty), dimCol, "—");
-        }
+        if (cf > 0.01f) {
+            ImU32 fadedSec = ui::lerpColor(IM_COL32(0, 0, 0, 0), secCol, cf);
+            ImU32 fadedDim = ui::lerpColor(IM_COL32(0, 0, 0, 0), dimCol, cf);
+            if (e.type == core::ModKind::Pak && e.enabled) {
+                auto it = pakRank.find(e.modId);
+                std::string ld = std::format("#{:03}", it != pakRank.end() ? it->second : 0);
+                textSnapped(rdl, ImVec2(p.x + c.load, ty), fadedSec, ld.c_str());
+            } else {
+                textSnapped(rdl, ImVec2(p.x + c.load, ty), fadedDim, "—");
+            }
 
-        const char* folder = e.type == core::ModKind::Ue4ss ? "Mods"
-                           : (subdirOf.count(e.modId) ? subdirOf[e.modId].c_str() : core::kLogicMods);
-        textSnapped(rdl, ImVec2(p.x + c.folder, ty), dimCol, folder);
+            const char* folder = e.type == core::ModKind::Ue4ss ? "Mods"
+                               : (subdirOf.count(e.modId) ? subdirOf[e.modId].c_str() : core::kLogicMods);
+            textSnapped(rdl, ImVec2(p.x + c.folder, ty), fadedDim, folder);
+        }
         if (reveal < 0.999f) rdl->PopClipRect();
         ImGui::PopID();
     }
@@ -2476,10 +2594,13 @@ void App::renderSettingsView(float a) {
 
     float w = ImGui::GetWindowWidth();
     float h = ImGui::GetWindowHeight();
-    float colW = std::min(620.0f * s, w - 32.0f * s);
-    float x = std::max(16.0f * s, (w - colW) * 0.5f);
+    float margin = std::max(12.0f * s, w * 0.04f);
+    float colW = std::min(860.0f * s, w - margin * 2.0f);
+    float x = (w - colW) * 0.5f;
     float e = ui::easeOutCubic(a);
     float slide = (1.0f - e) * 16.0f * s;
+
+    float sliderW = std::min(280.0f * s, colW * 0.45f);
 
     auto fieldLabel = [&](const char* t) {
         std::string up(t);
@@ -2511,7 +2632,8 @@ void App::renderSettingsView(float a) {
     ImGui::SetCursorPos(ImVec2(x, cardTop));
     ImGui::PushStyleColor(ImGuiCol_ChildBg, toVec(panelBg(colSurface)));
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f * s);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20.0f * s, 16.0f * s));
+    float cardPad = std::min(20.0f * s, colW * 0.04f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(cardPad, 16.0f * s));
     ImGui::BeginChild("##settingsCol", ImVec2(colW, cardH),
                       ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding);
 
@@ -2541,7 +2663,7 @@ void App::renderSettingsView(float a) {
             } else if (update.ok && update.updateAvailable) {
                 ImGui::TextColored(toVec(colAccent), "Update available: %s", update.latestVersion.c_str());
             } else if (update.ok) {
-                ImGui::TextColored(toVec(colTextDim), "Latest release: %s", update.latestVersion.c_str());
+                ImGui::TextColored(toVec(colTextDim), "Up to date (latest: %s)", update.latestVersion.c_str());
             } else if (!update.message.empty()) {
                 ImGui::TextColored(toVec(colWarn), "%s", update.message.c_str());
             }
@@ -2713,6 +2835,13 @@ void App::renderSettingsView(float a) {
             if (ImGui::Checkbox("Enable vsync", &config_.vsync))
                 saveConfig();
 
+            ImGui::Dummy(ImVec2(0, 4));
+            fieldLabel("Render mode");
+            ImGui::SetNextItemWidth(sliderW);
+            const char* renderModes[] = { "Reduced", "Always" };
+            if (ImGui::Combo("##rendermode", &config_.renderMode, renderModes, 2))
+                saveConfig();
+
             ImGui::Dummy(ImVec2(0, 6));
             ImGui::SeparatorText("Background");
             core::BackgroundConfig& bg = config_.background;
@@ -2742,27 +2871,27 @@ void App::renderSettingsView(float a) {
 
                 ImGui::Dummy(ImVec2(0, 4));
                 ImGui::TextColored(toVec(colTextDim), "Blur");
-                ImGui::SetNextItemWidth(180.0f * s);
+                ImGui::SetNextItemWidth(sliderW);
                 if (ImGui::SliderFloat("##bgblur", &bg.blur, 0.0f, 1.0f, "%.2f"))
                     background_.setBlur(bg.blur);
                 if (ImGui::IsItemDeactivatedAfterEdit())
                     saveConfig();
 
                 ImGui::TextColored(toVec(colTextDim), "Darkening");
-                ImGui::SetNextItemWidth(180.0f * s);
+                ImGui::SetNextItemWidth(sliderW);
                 if (ImGui::SliderFloat("##bgdim", &bg.dim, 0.0f, 1.0f, "%.2f"))
                     background_.setDim(bg.dim);
                 if (ImGui::IsItemDeactivatedAfterEdit())
                     saveConfig();
 
                 ImGui::TextColored(toVec(colTextDim), "Panel opacity");
-                ImGui::SetNextItemWidth(180.0f * s);
+                ImGui::SetNextItemWidth(sliderW);
                 ImGui::SliderFloat("##bgpanel", &bg.panelOpacity, 0.0f, 1.0f, "%.2f");
                 if (ImGui::IsItemDeactivatedAfterEdit())
                     saveConfig();
 
                 ImGui::TextColored(toVec(colTextDim), "Drift (slow motion)");
-                ImGui::SetNextItemWidth(180.0f * s);
+                ImGui::SetNextItemWidth(sliderW);
                 if (ImGui::SliderFloat("##bgdrift", &bg.driftAmount, 0.0f, 1.0f, "%.2f"))
                     background_.setDrift(bg.driftAmount, bg.driftSpeed);
                 if (ImGui::IsItemDeactivatedAfterEdit())
@@ -2770,7 +2899,7 @@ void App::renderSettingsView(float a) {
 
                 ImGui::BeginDisabled(bg.driftAmount <= 0.001f);
                 ImGui::TextColored(toVec(colTextDim), "Drift speed");
-                ImGui::SetNextItemWidth(180.0f * s);
+                ImGui::SetNextItemWidth(sliderW);
                 if (ImGui::SliderFloat("##bgdriftspeed", &bg.driftSpeed, 0.0f, 2.0f, "%.2f"))
                     background_.setDrift(bg.driftAmount, bg.driftSpeed);
                 if (ImGui::IsItemDeactivatedAfterEdit())
@@ -2781,7 +2910,7 @@ void App::renderSettingsView(float a) {
 
             ImGui::Dummy(ImVec2(0, 4));
             fieldLabel("UI scale");
-            ImGui::SetNextItemWidth(180.0f * s);
+            ImGui::SetNextItemWidth(sliderW);
             ImGui::SliderFloat("##uiscale", &uiScaleSetting_, 0.5f, 2.5f, "%.2f");
             if (ImGui::IsItemDeactivatedAfterEdit() && uiScaleSetting_ != uiScaleCurrent_) {
                 scaleAnimFrom_ = uiScaleCurrent_;

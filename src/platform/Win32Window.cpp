@@ -40,6 +40,8 @@ std::function<void()>          g_betweenFramesCb;
 bool g_vsync = true;
 int  g_redrawFrames = 4;
 
+WINDOWPLACEMENT g_lastPlacement{};
+
 class DropTarget : public IDropTarget {
 public:
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
@@ -204,9 +206,12 @@ void CleanupBlur() {
 
 bool EnsureSceneTargets(UINT w, UINT h) {
     if (w == 0 || h == 0 || !g_device) return false;
+    w = (w + 7u) & ~7u;
+    h = (h + 7u) & ~7u;
     if (g_sceneTex && g_blurW == w && g_blurH == h) return true;
     g_sceneTex.Reset(); g_sceneRTV.Reset(); g_sceneSRV.Reset();
     for (int i = 0; i < kMaxMips; ++i) { g_mipTex[i].Reset(); g_mipRTV[i].Reset(); g_mipSRV[i].Reset(); }
+    g_context->Flush();
     g_mipN = 0;
     if (!EnsureBlurPipeline()) return false;
     if (!MakeRT(w, h, g_sceneTex, g_sceneRTV, g_sceneSRV)) return false;
@@ -403,6 +408,12 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 g_resizeH = static_cast<UINT>(HIWORD(lParam));
                 RenderFrame();
             }
+            g_lastPlacement.length = sizeof(g_lastPlacement);
+            GetWindowPlacement(hWnd, &g_lastPlacement);
+            return 0;
+        case WM_MOVE:
+            g_lastPlacement.length = sizeof(g_lastPlacement);
+            GetWindowPlacement(hWnd, &g_lastPlacement);
             return 0;
         case WM_DPICHANGED: {
             const RECT* r = reinterpret_cast<const RECT*>(lParam);
@@ -414,8 +425,10 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
         case WM_GETMINMAXINFO: {
             auto* mmi = reinterpret_cast<MINMAXINFO*>(lParam);
-            mmi->ptMinTrackSize.x = 860;
-            mmi->ptMinTrackSize.y = 540;
+            UINT dpi = g_hwnd ? GetDpiForWindow(g_hwnd) : 96;
+            float ds = static_cast<float>(dpi) / 96.0f;
+            mmi->ptMinTrackSize.x = static_cast<LONG>(520.0f * ds);
+            mmi->ptMinTrackSize.y = static_cast<LONG>(380.0f * ds);
             return 0;
         }
         case WM_SYSCOMMAND:
@@ -423,6 +436,8 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 return 0;
             break;
         case WM_DESTROY:
+            g_lastPlacement.length = sizeof(g_lastPlacement);
+            GetWindowPlacement(hWnd, &g_lastPlacement);
             g_running = false;
             PostQuitMessage(0);
             return 0;
@@ -544,10 +559,8 @@ void Win32Window::onBetweenFrames(std::function<void()> cb) {
 }
 
 void Win32Window::getPlacement(int& x, int& y, int& w, int& h, bool& maximized) const {
-    if (!g_hwnd) { x = y = w = h = 0; maximized = false; return; }
-    WINDOWPLACEMENT wp{};
-    wp.length = sizeof(wp);
-    GetWindowPlacement(g_hwnd, &wp);
+    const WINDOWPLACEMENT& wp = g_lastPlacement;
+    if (wp.length == 0) { x = y = w = h = 0; maximized = false; return; }
     maximized = (wp.showCmd == SW_MAXIMIZE);
     RECT r = wp.rcNormalPosition;
     x = r.left;
@@ -560,6 +573,7 @@ void Win32Window::restorePlacement(int x, int y, int w, int h, bool maximized) {
     if (!g_hwnd || w <= 0 || h <= 0) return;
     WINDOWPLACEMENT wp{};
     wp.length = sizeof(wp);
+    GetWindowPlacement(g_hwnd, &wp);
     wp.rcNormalPosition = { x, y, x + w, y + h };
     wp.showCmd = maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
     SetWindowPlacement(g_hwnd, &wp);
