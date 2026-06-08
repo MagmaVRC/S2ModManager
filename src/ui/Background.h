@@ -43,7 +43,8 @@ public:
 
     /// <summary>Blits the cached blurred image across the window and applies the dim overlay.
     /// Call once per frame while building the ImGui frame, before drawing panels.</summary>
-    void draw(const ImVec2& displaySize);
+    /// <returns>True when the drift moved enough to warrant another frame.</returns>
+    bool draw(const ImVec2& displaySize);
 
     /// <summary>Releases every D3D11 resource. Must run before the device is destroyed.</summary>
     void releaseDevice();
@@ -88,6 +89,8 @@ private:
     float driftAmount_ = 0.0f;
     float driftSpeed_  = 1.0f;
     bool  blurDirty_ = true;
+    ImVec2 lastP0_{};
+    ImVec2 lastP1_{};
 };
 
 }

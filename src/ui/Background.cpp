@@ -361,35 +361,34 @@ void Background::ensureBlur() {
     blurDirty_ = false;
 }
 
-void Background::draw(const ImVec2& displaySize) {
+bool Background::draw(const ImVec2& displaySize) {
     ensureBlur();
     if (!resultSrv_)
-        return;
+        return false;
 
-    // Slow parallax drift: overscan the image by the pan margin, then wander the corner
-    // around inside it. Each axis sums two detuned sines on incommensurate frequencies so
-    // the path is a meandering 2D loop (never a straight line), plus a gentle scale breath
-    // for depth. The screen stays fully covered as long as offsets stay within the margin.
     ImVec2 p0(0.0f, 0.0f);
     ImVec2 p1 = displaySize;
+    bool driftMoved = false;
     if (driftAmount_ > 0.001f) {
         float extraX = driftAmount_ * 0.06f * displaySize.x;
         float extraY = driftAmount_ * 0.06f * displaySize.y;
         float t = static_cast<float>(ImGui::GetTime()) * driftSpeed_ * 0.15f;
 
-        // Two-octave wander; weights sum to 1 so travel stays within the margin.
         float dx = (std::sin(t * 1.00f)        * 0.6f + std::sin(t * 0.37f + 2.1f) * 0.4f) * extraX;
         float dy = (std::sin(t * 0.83f + 1.7f) * 0.6f + std::sin(t * 0.31f + 4.3f) * 0.4f) * extraY;
 
-        // Subtle outward-only zoom breathing (0..30% of the margin) so motion reads as
-        // parallax. Outward-only keeps the rect at least as large as the overscan, so the
-        // wander above can never pull an edge inside the screen.
         float zoom = (std::sin(t * 0.21f + 0.6f) * 0.5f + 0.5f) * 0.3f;
         float zx = extraX * zoom;
         float zy = extraY * zoom;
 
         p0 = ImVec2(-extraX + dx - zx, -extraY + dy - zy);
         p1 = ImVec2(displaySize.x + extraX + dx + zx, displaySize.y + extraY + dy + zy);
+
+        float delta = std::fabs(p0.x - lastP0_.x) + std::fabs(p0.y - lastP0_.y)
+                    + std::fabs(p1.x - lastP1_.x) + std::fabs(p1.y - lastP1_.y);
+        driftMoved = delta >= 0.5f;
+        lastP0_ = p0;
+        lastP1_ = p1;
     }
 
     ImDrawList* bg = ImGui::GetBackgroundDrawList();
@@ -398,6 +397,7 @@ void Background::draw(const ImVec2& displaySize) {
         ImU32 col = IM_COL32(0, 0, 0, static_cast<int>(dim_ * 255.0f));
         bg->AddRectFilled(ImVec2(0, 0), displaySize, col);
     }
+    return driftMoved;
 }
 
 void Background::releaseDevice() {
