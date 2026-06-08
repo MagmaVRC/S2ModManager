@@ -59,7 +59,7 @@ std::optional<SemVer> parseSemVer(std::string_view input) {
         if (!parsePart(piece, *parts[i]))
             return std::nullopt;
         if (dot == std::string::npos)
-            return i == 0 ? std::optional<SemVer>(out) : std::nullopt;
+            return i == 2 ? std::optional<SemVer>(out) : std::nullopt;
         pos = dot + 1;
     }
     return pos >= v.size() ? std::optional<SemVer>(out) : std::nullopt;
