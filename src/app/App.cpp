@@ -274,6 +274,24 @@ App::~App() {
         installThread_.join();
 }
 
+void App::restoreWindow(platform::Win32Window& win) {
+    if (config_.windowWidth > 0 && config_.windowHeight > 0)
+        win.restorePlacement(config_.windowX, config_.windowY,
+                             config_.windowWidth, config_.windowHeight,
+                             config_.windowMaximized);
+}
+
+void App::saveWindow(platform::Win32Window& win) {
+    int x, y, w, h; bool mx;
+    win.getPlacement(x, y, w, h, mx);
+    config_.windowX = x;
+    config_.windowY = y;
+    config_.windowWidth = w;
+    config_.windowHeight = h;
+    config_.windowMaximized = mx;
+    config_.save();
+}
+
 void App::onScaleChanged(float dpiScale) {
     dpiScale_ = dpiScale;
     ui::setUiScale(dpiScale);
@@ -1023,6 +1041,25 @@ void App::render(int displayW, int displayH) {
         if (ctrl && (ImGui::IsKeyPressed(ImGuiKey_Y) || (shift && ImGui::IsKeyPressed(ImGuiKey_Z)))) {
             std::string l = history_.redo();
             if (!l.empty()) toast(std::format("Redid: {}", l), colAccent);
+        }
+
+        constexpr float kScaleStep = 0.1f;
+        constexpr float kScaleMin  = 0.5f;
+        constexpr float kScaleMax  = 2.5f;
+        float newScale = 0.0f;
+        if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Equal))
+            newScale = std::min(uiScaleCurrent_ + kScaleStep, kScaleMax);
+        else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Minus))
+            newScale = std::max(uiScaleCurrent_ - kScaleStep, kScaleMin);
+        else if (ctrl && ImGui::IsKeyPressed(ImGuiKey_0))
+            newScale = 1.0f;
+        if (newScale > 0.0f && newScale != uiScaleCurrent_) {
+            uiScaleSetting_ = newScale;
+            scaleAnimFrom_ = uiScaleCurrent_;
+            scaleAnimTo_ = newScale;
+            scaleAnimT_ = 0.0f;
+            config_.uiScale = newScale;
+            saveConfig();
         }
     }
 
@@ -2745,7 +2782,7 @@ void App::renderSettingsView(float a) {
             ImGui::Dummy(ImVec2(0, 4));
             fieldLabel("UI scale");
             ImGui::SetNextItemWidth(180.0f * s);
-            ImGui::SliderFloat("##uiscale", &uiScaleSetting_, 0.8f, 1.5f, "%.2f");
+            ImGui::SliderFloat("##uiscale", &uiScaleSetting_, 0.5f, 2.5f, "%.2f");
             if (ImGui::IsItemDeactivatedAfterEdit() && uiScaleSetting_ != uiScaleCurrent_) {
                 scaleAnimFrom_ = uiScaleCurrent_;
                 scaleAnimTo_ = uiScaleSetting_;

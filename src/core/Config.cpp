@@ -51,6 +51,11 @@ void to_json(nlohmann::json& j, const Config& c) {
         {"uiScale", c.uiScale},
         {"activeProfileName", c.activeProfileName},
         {"includePrereleases", c.includePrereleases},
+        {"windowWidth", c.windowWidth},
+        {"windowHeight", c.windowHeight},
+        {"windowX", c.windowX},
+        {"windowY", c.windowY},
+        {"windowMaximized", c.windowMaximized},
         {"background", {
             {"enabled", c.background.enabled},
             {"darkImage", c.background.darkImage},
@@ -80,6 +85,11 @@ void from_json(const nlohmann::json& j, Config& c) {
     c.uiScale           = j.value("uiScale", 1.0f);
     c.activeProfileName = j.value("activeProfileName", "Vanilla");
     c.includePrereleases = j.value("includePrereleases", false);
+    c.windowWidth     = j.value("windowWidth", 0);
+    c.windowHeight    = j.value("windowHeight", 0);
+    c.windowX         = j.value("windowX", -1);
+    c.windowY         = j.value("windowY", -1);
+    c.windowMaximized = j.value("windowMaximized", false);
     if (j.contains("background") && j["background"].is_object()) {
         const auto& b = j["background"];
         c.background.enabled         = b.value("enabled", true);
@@ -96,7 +106,7 @@ void from_json(const nlohmann::json& j, Config& c) {
 
 static void validate(Config& c) {
     auto clamp01 = [](float& v) { if (v < 0.0f) v = 0.0f; if (v > 1.0f) v = 1.0f; };
-    c.uiScale = std::clamp(c.uiScale, 0.5f, 2.0f);
+    c.uiScale = std::clamp(c.uiScale, 0.5f, 2.5f);
     if (c.themeMode != "dark" && c.themeMode != "light" && c.themeMode != "subnautica")
         c.themeMode = "subnautica";
     clamp01(c.background.blur);

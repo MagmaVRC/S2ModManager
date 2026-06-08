@@ -42,12 +42,18 @@ struct Config {
     Palette dark = defaultDark();
     /// <summary>Whether vsync (present interval 1) is enabled.</summary>
     bool vsync = true;
-    /// <summary>UI scale multiplier applied on top of DPI (0.8–1.5).</summary>
+    /// <summary>UI scale multiplier applied on top of DPI (0.5–2.5).</summary>
     float uiScale = 1.0f;
     /// <summary>Name of the currently active profile.</summary>
     std::string activeProfileName = "Vanilla";
     /// <summary>Whether the update check considers prerelease tags as candidates.</summary>
     bool includePrereleases = false;
+    /// <summary>Saved window geometry from the previous session (client-area size in pixels).</summary>
+    int windowWidth = 0;
+    int windowHeight = 0;
+    int windowX = -1;
+    int windowY = -1;
+    bool windowMaximized = false;
     /// <summary>Background-image settings.</summary>
     BackgroundConfig background;
 
